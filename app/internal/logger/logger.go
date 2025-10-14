@@ -25,7 +25,7 @@ func init() {
 		DisableCaller:     false,
 		DisableStacktrace: false,
 		Sampling:          nil,
-		OutputPaths:       []string{"stdout", "./app/logs/logs.json"},
+		OutputPaths:       []string{"stdout", "./logs/logs.json"},
 		ErrorOutputPaths:  []string{"stderr"},
 	}
 

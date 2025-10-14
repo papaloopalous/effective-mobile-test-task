@@ -3,8 +3,8 @@ server_port: ":8080"
 db:
   user: "test"
   password: "test"
-  host: "localhost"
-  port: ":8000"
+  host: "postgres"
+  port: ":5432"
   name: "test"
 
 slow_threshold: 200ms

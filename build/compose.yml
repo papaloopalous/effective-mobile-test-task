@@ -1,13 +1,25 @@
 services:
-  db:
+  test_task:
+    image: papaloopalous/effective-mobile-test:latest
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+      - ./configs:/app/configs
+    ports:
+      - "${MAIN_PORT}:${MAIN_PORT}"
+
+  postgres:
     image: postgres:15
-    container_name: my_postgres
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_USER: test
       POSTGRES_PASSWORD: test
       POSTGRES_DB: test
-    ports:
-      - "8000:5432"
     volumes:
+      - pgdata:/var/lib/postgresql/data
       - .:/docker-entrypoint-initdb.d
+
+volumes:
+  pgdata:
