@@ -8,13 +8,14 @@ import (
 	"syscall"
 	"test_task/app/api/router"
 	"test_task/app/internal/logger"
+	readConfig "test_task/app/internal/read_config"
 	"time"
 
 	"go.uber.org/zap"
 )
 
 func main() {
-	srvPort := ":8080" // read_config.GetSrvInfo()
+	srvPort := readConfig.GetSrvInfo()
 
 	router := router.CreateNewRouter()
 

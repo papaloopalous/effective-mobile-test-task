@@ -6,8 +6,8 @@ import (
 	"syscall"
 	"test_task/app/api/handlers"
 	"test_task/app/internal/logger"
+	readConfig "test_task/app/internal/read_config"
 	"test_task/app/internal/repo"
-	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -24,7 +24,7 @@ func gracefulStop(repo repo.SubRepo) {
 func CreateNewRouter() *mux.Router {
 	router := mux.NewRouter()
 
-	subRepo := repo.NewSubRepo("postgres://test:test@localhost:8000/test?sslmode=disable", 200*time.Millisecond) // read_config.GetDBInfo()
+	subRepo := repo.NewSubRepo(readConfig.GetDBInfo())
 
 	go gracefulStop(subRepo)
 

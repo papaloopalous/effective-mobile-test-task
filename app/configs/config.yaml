@@ -1,0 +1,10 @@
+server_port: ":8080"
+
+db:
+  user: "test"
+  password: "test"
+  host: "localhost"
+  port: ":8000"
+  name: "test"
+
+slow_threshold: 200ms
