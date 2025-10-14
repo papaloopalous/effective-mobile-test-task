@@ -4,12 +4,13 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"test_task/app/api/handlers"
-	"test_task/app/internal/logger"
-	readConfig "test_task/app/internal/read_config"
-	"test_task/app/internal/repo"
+	"task_test/api/handlers"
+	"task_test/internal/logger"
+	readConfig "task_test/internal/read_config"
+	"task_test/internal/repo"
 
 	"github.com/gorilla/mux"
+	"go.uber.org/zap"
 )
 
 func gracefulStop(repo repo.SubRepo) {
@@ -18,7 +19,10 @@ func gracefulStop(repo repo.SubRepo) {
 	<-quit
 	logger.Log.Info("closing repo and logger")
 	repo.Close()
-	logger.Log.Sync()
+	err := logger.Log.Sync()
+	if err != nil {
+		logger.Log.Error("failed to sync logger", zap.Error(err))
+	}
 }
 
 func CreateNewRouter() *mux.Router {

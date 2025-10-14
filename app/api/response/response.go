@@ -3,7 +3,7 @@ package response
 import (
 	"encoding/json"
 	"net/http"
-	"test_task/app/internal/logger"
+	"task_test/internal/logger"
 
 	"go.uber.org/zap"
 )

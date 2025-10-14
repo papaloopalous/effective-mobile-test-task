@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
-	"test_task/app/api/response"
-	"test_task/app/internal/repo"
+	"task_test/api/response"
+	"task_test/internal/repo"
+
 	"time"
 
 	"github.com/google/uuid"
@@ -13,6 +15,8 @@ import (
 type SubHandler struct {
 	Subs repo.SubRepo
 }
+
+// TODO: посмотреть где лучше парсить дату, в хендлере или в репо
 
 type addReq struct {
 	ServiceName string    `json:"service_name"`
@@ -132,28 +136,37 @@ type listReq struct {
 	EndDate     string `json:"end_date"`
 }
 
-func (sh *SubHandler) ListSubs(w http.ResponseWriter, r *http.Request) {
+func decodeAndValidateListReq(w http.ResponseWriter, r *http.Request) (listReq, uuid.UUID, error) {
 	var req listReq
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.WriteAPIResponse(w, http.StatusBadRequest, "invalid list request", err.Error())
-		return
+		return listReq{}, uuid.Nil, err
 	}
 
 	if len(req.ServiceName) > 255 {
 		response.WriteAPIResponse(w, http.StatusBadRequest, "service name is too long, 255 is allowed", nil)
-		return
+		return listReq{}, uuid.Nil, errors.New("service name too long")
 	}
 
 	var userID uuid.UUID
 	userID, err := uuid.Parse(req.UserID)
 	if err != nil && req.UserID != "" {
 		response.WriteAPIResponse(w, http.StatusBadRequest, "invalid user id", err.Error())
-		return
+		return listReq{}, uuid.Nil, err
 	}
 
 	if req.UserID == "" {
 		userID = uuid.Nil
+	}
+
+	return req, userID, nil
+}
+
+func (sh *SubHandler) ListSubs(w http.ResponseWriter, r *http.Request) {
+	req, userID, err := decodeAndValidateListReq(w, r)
+	if err != nil {
+		return
 	}
 
 	subs := sh.Subs.List(req.ServiceName, userID, req.StartDate, req.EndDate)
@@ -162,27 +175,9 @@ func (sh *SubHandler) ListSubs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (sh *SubHandler) SumSubs(w http.ResponseWriter, r *http.Request) {
-	var req listReq
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteAPIResponse(w, http.StatusBadRequest, "invalid list request", err.Error())
+	req, userID, err := decodeAndValidateListReq(w, r)
+	if err != nil {
 		return
-	}
-
-	if len(req.ServiceName) > 255 {
-		response.WriteAPIResponse(w, http.StatusBadRequest, "service name is too long, 255 is allowed", nil)
-		return
-	}
-
-	var userID uuid.UUID
-	userID, err := uuid.Parse(req.UserID)
-	if err != nil && req.UserID != "" {
-		response.WriteAPIResponse(w, http.StatusBadRequest, "invalid user id", err.Error())
-		return
-	}
-
-	if req.UserID == "" {
-		userID = uuid.Nil
 	}
 
 	sum := sh.Subs.GetSum(req.ServiceName, userID, req.StartDate, req.EndDate)

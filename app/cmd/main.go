@@ -6,22 +6,24 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"test_task/app/api/router"
-	"test_task/app/internal/logger"
-	readConfig "test_task/app/internal/read_config"
+	"task_test/api/router"
+	"task_test/internal/logger"
+	readConfig "task_test/internal/read_config"
+
 	"time"
 
 	"go.uber.org/zap"
 )
 
 func main() {
-	srvPort := readConfig.GetSrvInfo()
+	srvPort, timeout := readConfig.GetSrvInfo()
 
 	router := router.CreateNewRouter()
 
 	srv := &http.Server{
-		Addr:    srvPort,
-		Handler: router,
+		ReadHeaderTimeout: timeout,
+		Addr:              srvPort,
+		Handler:           router,
 	}
 
 	go func() {

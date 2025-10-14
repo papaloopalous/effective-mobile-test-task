@@ -2,7 +2,8 @@ package db
 
 import (
 	"context"
-	"test_task/app/internal/logger"
+	"task_test/internal/logger"
+
 	"time"
 
 	"github.com/jackc/pgx/v5"

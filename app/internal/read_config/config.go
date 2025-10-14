@@ -2,7 +2,8 @@ package readconfig
 
 import (
 	"fmt"
-	"test_task/app/internal/logger"
+	"task_test/internal/logger"
+
 	"time"
 
 	"github.com/spf13/viper"
@@ -18,8 +19,10 @@ func init() {
 	}
 }
 
-func GetSrvInfo() string {
-	return viper.GetString("server_port")
+func GetSrvInfo() (string, time.Duration) {
+	port := viper.GetString("server_port")
+	timeout := viper.GetDuration("read_header_timeout")
+	return port, timeout
 }
 
 func GetDBInfo() (string, time.Duration) {

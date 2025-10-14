@@ -1,0 +1,24 @@
+version: "2"
+
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - unused
+    - errcheck
+    - bodyclose
+    - cyclop
+    - gosec
+    - gocritic
+    - ineffassign
+    - contextcheck
+    - decorder
+    - dupl
+    - goconst
+    - gocyclo
+    - godox
+    - iface
+    - misspell
+
+run:
+  timeout: 2m

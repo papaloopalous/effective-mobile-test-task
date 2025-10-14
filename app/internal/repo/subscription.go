@@ -1,9 +1,12 @@
 package repo
 
+// TODO: проверить порядки импорта везде
+
 import (
 	"context"
-	"test_task/app/internal/db"
-	"test_task/app/internal/logger"
+	"task_test/internal/db"
+	"task_test/internal/logger"
+
 	"time"
 
 	"github.com/google/uuid"
