@@ -2,8 +2,10 @@ package response
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
+	"test_task/app/internal/logger"
+
+	"go.uber.org/zap"
 )
 
 // APIResponse определяет структуру ответа API
@@ -25,10 +27,10 @@ func WriteAPIResponse(w http.ResponseWriter, statusCode int, message string, dat
 		Data:    data,
 	}
 
-	log.Println("response sent: ", resp)
+	logger.Log.Info("response sent", zap.Any("body", resp))
 
 	err := json.NewEncoder(w).Encode(resp)
 	if err != nil {
-		log.Println("failed to write a response: ", err)
+		logger.Log.Error("failed to write a response", zap.Error(err))
 	}
 }

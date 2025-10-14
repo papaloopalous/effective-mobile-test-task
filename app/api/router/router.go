@@ -1,11 +1,11 @@
 package router
 
 import (
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"test_task/app/api/handlers"
+	"test_task/app/internal/logger"
 	"test_task/app/internal/repo"
 	"time"
 
@@ -16,15 +16,13 @@ func gracefulStop(repo repo.SubRepo) {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
+	logger.Log.Info("closing repo and logger")
 	repo.Close()
+	logger.Log.Sync()
 }
 
 func CreateNewRouter() *mux.Router {
 	router := mux.NewRouter()
-
-	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}).Methods("GET")
 
 	subRepo := repo.NewSubRepo("postgres://test:test@localhost:8000/test?sslmode=disable", 200*time.Millisecond) // read_config.GetDBInfo()
 
@@ -36,6 +34,10 @@ func CreateNewRouter() *mux.Router {
 
 	router.HandleFunc("/addSub", subHandler.AddSub).Methods("POST")
 	router.HandleFunc("/getSub", subHandler.GetByID).Methods("GET")
+	router.HandleFunc("/updateSub", subHandler.UpdateByID).Methods("PUT")
+	router.HandleFunc("/deleteSub", subHandler.RemoveByID).Methods("DELETE")
+	router.HandleFunc("/listSubs", subHandler.ListSubs).Methods("GET")
+	router.HandleFunc("/totalSubs", subHandler.SumSubs).Methods("GET")
 
 	return router
 }

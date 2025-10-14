@@ -2,13 +2,15 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"test_task/app/api/router"
+	"test_task/app/internal/logger"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -22,11 +24,11 @@ func main() {
 	}
 
 	go func() {
-		log.Println("server is starting on port", srvPort)
+		logger.Log.Info("server is starting", zap.String("port", srvPort))
 		err := srv.ListenAndServe()
 
 		if err != nil && err != http.ErrServerClosed {
-			log.Fatal("server error:", err)
+			logger.Log.Fatal("server error", zap.Error(err))
 		}
 	}()
 
@@ -34,15 +36,15 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	<-quit
-	log.Println("server is shutting down")
+	logger.Log.Info("server is shuttiong down")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	err := srv.Shutdown(ctx)
 	if err != nil {
-		log.Fatal("timeout expired: ", err)
+		logger.Log.Fatal("timeout expired", zap.Error(err))
 	}
 
-	log.Println("server stopped gracefully")
+	logger.Log.Info("server stopped gracefully")
 }

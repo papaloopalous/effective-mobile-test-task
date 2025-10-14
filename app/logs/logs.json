@@ -1,0 +1,4 @@
+{"level":"INFO","at":"2025-10-14 15:51:55","from":"cmd/main.go:27","msg":"server is starting","port":":8080"}
+{"level":"INFO","at":"2025-10-14 15:52:03","from":"cmd/main.go:39","msg":"server is shuttiong down"}
+{"level":"INFO","at":"2025-10-14 15:52:03","from":"router/router.go:19","msg":"closing repo and logger"}
+{"level":"INFO","at":"2025-10-14 15:52:03","from":"cmd/main.go:49","msg":"server stopped gracefully"}

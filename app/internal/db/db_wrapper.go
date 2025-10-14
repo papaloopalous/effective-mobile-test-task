@@ -2,11 +2,12 @@ package db
 
 import (
 	"context"
-	"log"
+	"test_task/app/internal/logger"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 )
 
 type DB interface {
@@ -58,18 +59,7 @@ func (w *Pool) logQuery(method string, query string, args []any, elapsed time.Du
 		prefix = "(OK)"
 	}
 
-	logMsg := "%s %s took %s with query %q"
-	if len(args) > 0 {
-		logMsg += " with args %v"
-	}
-	if rows > 0 {
-		logMsg += " with affected rows %v"
-	}
-	if err != nil {
-		logMsg += " with err %v"
-	}
-
-	log.Printf(logMsg, prefix, method, elapsed, query, args, rows, err)
+	logger.Log.Info("db query executed", zap.String("status", prefix), zap.String("method", method), zap.Duration("elapsed", elapsed), zap.String("query", query), zap.Any("args", args), zap.Int64("rows", rows), zap.Error(err))
 }
 
 func (w *Pool) Close() {

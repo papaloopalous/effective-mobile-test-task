@@ -2,11 +2,12 @@ package repo
 
 import (
 	"context"
-	"log"
 	"test_task/app/internal/db"
+	"test_task/app/internal/logger"
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type SubInfo struct {
@@ -33,7 +34,7 @@ func NewSubRepo(dsn string, slowThreshold time.Duration) *SubData {
 
 	pool, err := db.NewDB(ctx, dsn, slowThreshold)
 	if err != nil {
-		log.Fatal("failed to connect to db: ", err)
+		logger.Log.Fatal("failed to connect to db", zap.Error(err))
 	}
 
 	return &SubData{
@@ -128,7 +129,8 @@ func (sd *SubData) List(serviceName string, userID uuid.UUID, startDate string, 
 
 	query := `SELECT service_name, monthly_fee, user_id, start_date, end_date
 	FROM subscriptions
-	WHERE service_name = $1 AND user_id = $2
+	WHERE (service_name = $1 OR $1 = '')
+		AND (user_id = $2 OR $2 = '00000000-0000-0000-0000-000000000000')
 		AND start_date >= $3 AND end_date <= $4
 	ORDER BY start_date ASC`
 
@@ -155,6 +157,7 @@ func (sd *SubData) List(serviceName string, userID uuid.UUID, startDate string, 
 
 	return res
 }
+
 func (sd *SubData) GetSum(serviceName string, userID uuid.UUID, startDate string, endDate string) int64 {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -169,10 +172,22 @@ func (sd *SubData) GetSum(serviceName string, userID uuid.UUID, startDate string
 		return 0
 	}
 
-	query := `SELECT COALESCE(SUM(monthly_fee), 0)
-	FROM subscriptions
-	WHERE service_name = $1 AND user_id = $2
-		AND start_date >= $3 AND end_date <= $4`
+	query := `SELECT COALESCE(SUM(COALESCE(s.monthly_fee, 0) *
+		GREATEST(
+			0,
+			(
+				(EXTRACT(YEAR FROM date_trunc('month', LEAST(s.end_date, ($4::date - interval '1 day')))) * 12
+				+ EXTRACT(MONTH FROM date_trunc('month', LEAST(s.end_date, ($4::date - interval '1 day')))))
+				- (EXTRACT(YEAR FROM date_trunc('month', GREATEST(s.start_date, $3))) * 12
+				+ EXTRACT(MONTH FROM date_trunc('month', GREATEST(s.start_date, $3))))
+				+ 1
+			)
+		)
+	), 0) AS total_sum
+	FROM subscriptions s
+	WHERE (s.service_name = $1 OR $1 = '')
+		AND (s.user_id = $2 OR $2 = '00000000-0000-0000-0000-000000000000')
+		AND s.start_date < $4 AND s.end_date >= $3;`
 
 	row := sd.sqlDB.QueryRow(ctx, query, serviceName, userID, start, end)
 	var res int64
