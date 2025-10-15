@@ -17,8 +17,6 @@ type SubHandler struct {
 	Subs repo.SubRepo
 }
 
-// TODO: посмотреть где лучше парсить дату, в хендлере или в репо
-
 type addReq struct {
 	ServiceName string    `json:"service_name"`
 	UserID      uuid.UUID `json:"user_id"`
