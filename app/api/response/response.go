@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"task_test/internal/logger"
+	"task_test/util"
 
 	"go.uber.org/zap"
 )
@@ -31,6 +32,6 @@ func WriteAPIResponse(w http.ResponseWriter, statusCode int, message string, dat
 
 	err := json.NewEncoder(w).Encode(resp)
 	if err != nil {
-		logger.Log.Error("failed to write a response", zap.Error(err))
+		logger.Log.Error(util.ErrLogWriteResp, zap.Error(err))
 	}
 }

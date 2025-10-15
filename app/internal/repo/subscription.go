@@ -45,22 +45,18 @@ func NewSubRepo(dsn string, slowThreshold time.Duration) *SubData {
 	}
 }
 
-func (sd *SubData) Create(serviceName string, monthlyFee int, userID uuid.UUID, startDate string, nMonths int) (uuid.UUID, error) {
+func (sd *SubData) Create(serviceName string, monthlyFee int, userID uuid.UUID, startDate time.Time, nMonths int) (uuid.UUID, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	start, err := time.Parse("01-2006", startDate)
-	if err != nil {
-		return uuid.Nil, err
-	}
-	end := start.AddDate(0, nMonths, 0)
+	end := startDate.AddDate(0, nMonths, 0)
 
 	id := uuid.New()
 	query := `INSERT INTO subscriptions (id, service_name, monthly_fee, user_id, start_date, end_date)
 	VALUES ($1, $2, $3, $4, $5, $6)
 	ON CONFLICT DO NOTHING`
 
-	err = sd.sqlDB.Exec(ctx, query, id, serviceName, monthlyFee, userID, start, end)
+	err := sd.sqlDB.Exec(ctx, query, id, serviceName, monthlyFee, userID, startDate, end)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -68,7 +64,7 @@ func (sd *SubData) Create(serviceName string, monthlyFee int, userID uuid.UUID, 
 	return id, nil
 }
 
-func (sd *SubData) Read(subID uuid.UUID) (SubInfo, error) {
+func (sd *SubData) Read(subID uuid.UUID, format string) (SubInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -85,26 +81,21 @@ func (sd *SubData) Read(subID uuid.UUID) (SubInfo, error) {
 		return SubInfo{}, err
 	}
 
-	info.StartDate = start.Format("01-2006")
-	info.EndDate = end.Format("01-2006")
+	info.StartDate = start.Format(format)
+	info.EndDate = end.Format(format)
 
 	return info, nil
 }
 
-func (sd *SubData) Update(subID uuid.UUID, monthlyFee int, endDate string) error {
+func (sd *SubData) Update(subID uuid.UUID, monthlyFee int, endDate time.Time) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
-	end, err := time.Parse("01-2006", endDate)
-	if err != nil {
-		return err
-	}
 
 	query := `UPDATE subscriptions
 	SET monthly_fee = $1, end_date = $2
 	WHERE id = $3`
 
-	return sd.sqlDB.Exec(ctx, query, monthlyFee, end, subID)
+	return sd.sqlDB.Exec(ctx, query, monthlyFee, endDate, subID)
 }
 
 func (sd *SubData) Delete(subID uuid.UUID) error {
@@ -116,19 +107,9 @@ func (sd *SubData) Delete(subID uuid.UUID) error {
 	return sd.sqlDB.Exec(ctx, query, subID)
 }
 
-func (sd *SubData) List(serviceName string, userID uuid.UUID, startDate string, endDate string) []SubInfo {
+func (sd *SubData) List(serviceName string, userID uuid.UUID, startDate time.Time, endDate time.Time, format string) []SubInfo {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
-	start, err := time.Parse("01-2006", startDate)
-	if err != nil {
-		return []SubInfo{}
-	}
-
-	end, err := time.Parse("01-2006", endDate)
-	if err != nil {
-		return []SubInfo{}
-	}
 
 	query := `SELECT service_name, monthly_fee, user_id, start_date, end_date
 	FROM subscriptions
@@ -137,7 +118,7 @@ func (sd *SubData) List(serviceName string, userID uuid.UUID, startDate string, 
 		AND start_date >= $3 AND end_date <= $4
 	ORDER BY start_date ASC`
 
-	rows, err := sd.sqlDB.Query(ctx, query, serviceName, userID, start, end)
+	rows, err := sd.sqlDB.Query(ctx, query, serviceName, userID, startDate, endDate)
 	if err != nil {
 		return []SubInfo{}
 	}
@@ -152,8 +133,8 @@ func (sd *SubData) List(serviceName string, userID uuid.UUID, startDate string, 
 			continue
 		}
 
-		info.StartDate = s.Format("01-2006")
-		info.EndDate = e.Format("01-2006")
+		info.StartDate = s.Format(format)
+		info.EndDate = e.Format(format)
 
 		res = append(res, info)
 	}
@@ -161,19 +142,9 @@ func (sd *SubData) List(serviceName string, userID uuid.UUID, startDate string, 
 	return res
 }
 
-func (sd *SubData) GetSum(serviceName string, userID uuid.UUID, startDate string, endDate string) int64 {
+func (sd *SubData) GetSum(serviceName string, userID uuid.UUID, startDate time.Time, endDate time.Time) int64 {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
-	start, err := time.Parse("01-2006", startDate)
-	if err != nil {
-		return 0
-	}
-
-	end, err := time.Parse("01-2006", endDate)
-	if err != nil {
-		return 0
-	}
 
 	query := `SELECT COALESCE(SUM(COALESCE(s.monthly_fee, 0) *
 		GREATEST(
@@ -192,9 +163,9 @@ func (sd *SubData) GetSum(serviceName string, userID uuid.UUID, startDate string
 		AND (s.user_id = $2 OR $2 = '00000000-0000-0000-0000-000000000000')
 		AND s.start_date < $4 AND s.end_date >= $3;`
 
-	row := sd.sqlDB.QueryRow(ctx, query, serviceName, userID, start, end)
+	row := sd.sqlDB.QueryRow(ctx, query, serviceName, userID, startDate, endDate)
 	var res int64
-	err = row.Scan(&res)
+	err := row.Scan(&res)
 	if err != nil {
 		return 0
 	}

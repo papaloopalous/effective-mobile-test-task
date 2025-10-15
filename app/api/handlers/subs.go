@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"task_test/api/response"
 	"task_test/internal/repo"
+	"task_test/util"
 
 	"time"
 
@@ -31,39 +32,45 @@ func (sh *SubHandler) AddSub(w http.ResponseWriter, r *http.Request) {
 	var req addReq
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteAPIResponse(w, http.StatusBadRequest, "invalid add request", err.Error())
+		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidAddReq, err.Error())
+		return
+	}
+
+	start, err := time.Parse(util.DateFormat, req.StartDate)
+	if err != nil {
+		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogParseStartDate, err.Error())
 		return
 	}
 
 	if len(req.ServiceName) > 255 {
-		response.WriteAPIResponse(w, http.StatusBadRequest, "service name is too long, 255 is allowed", nil)
+		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogLongServiceName, nil)
 		return
 	}
 
-	id, err := sh.Subs.Create(req.ServiceName, req.MonthlyFee, req.UserID, req.StartDate, req.NMonths)
+	id, err := sh.Subs.Create(req.ServiceName, req.MonthlyFee, req.UserID, start, req.NMonths)
 	if err != nil {
-		response.WriteAPIResponse(w, http.StatusInternalServerError, "failed to add a subscription", err.Error())
+		response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogAddSub, err.Error())
 		return
 	}
 
-	response.WriteAPIResponse(w, http.StatusCreated, "subscription added successfully", id)
+	response.WriteAPIResponse(w, http.StatusCreated, util.SuccessLogAddSub, id)
 }
 
 func (sh *SubHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("sub_id")
 	subID, err := uuid.Parse(id)
 	if err != nil {
-		response.WriteAPIResponse(w, http.StatusBadRequest, "invalid subscription id", err.Error())
+		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidSubID, err.Error())
 		return
 	}
 
-	sub, err := sh.Subs.Read(subID)
+	sub, err := sh.Subs.Read(subID, util.DateFormat)
 	if err != nil {
-		response.WriteAPIResponse(w, http.StatusInternalServerError, "failed to get a subscription", err.Error())
+		response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogGetSub, err.Error())
 		return
 	}
 
-	response.WriteAPIResponse(w, http.StatusOK, "subscription retrieved successfully", sub)
+	response.WriteAPIResponse(w, http.StatusOK, util.SussessLogGetSub, sub)
 }
 
 type updateReq struct {
@@ -76,57 +83,62 @@ func (sh *SubHandler) UpdateByID(w http.ResponseWriter, r *http.Request) {
 	var req updateReq
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteAPIResponse(w, http.StatusBadRequest, "invalid update request", err.Error())
+		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidUpdateReq, err.Error())
 		return
 	}
 
-	info, err := sh.Subs.Read(req.SubID)
+	end, err := time.Parse(util.DateFormat, req.EndDate)
 	if err != nil {
-		response.WriteAPIResponse(w, http.StatusNotFound, "subscription not found", err.Error())
+		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogParseEndDate, err.Error())
+		return
+	}
+
+	info, err := sh.Subs.Read(req.SubID, util.DateFormat)
+	if err != nil {
+		response.WriteAPIResponse(w, http.StatusNotFound, util.ErrLogSubNotFound, err.Error())
 		return
 	}
 
 	var s, e time.Time
-	s, err = time.Parse("01-2006", info.StartDate)
+	s, err = time.Parse(util.DateFormat, info.StartDate)
 	if err != nil {
-		response.WriteAPIResponse(w, http.StatusInternalServerError, "failed to parse start date", err.Error())
-		return
+		response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogParseStartDate, err.Error())
 	}
-	e, err = time.Parse("01-2006", req.EndDate)
+
+	e, err = time.Parse(util.DateFormat, info.EndDate)
 	if err != nil {
-		response.WriteAPIResponse(w, http.StatusInternalServerError, "failed to parse end date", err.Error())
-		return
+		response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogParseEndDate, err.Error())
 	}
 
 	if s.Compare(e) == 1 {
-		response.WriteAPIResponse(w, http.StatusBadRequest, "end date could not be before start date", map[string]string{"start": s.Format("01-2006"), "end": e.Format("01-2006")})
+		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLodEndBeforeStartDate, map[string]string{"start": s.Format(util.DateFormat), "end": e.Format(util.DateFormat)})
 		return
 	}
 
-	err = sh.Subs.Update(req.SubID, req.MonthlyFee, req.EndDate)
+	err = sh.Subs.Update(req.SubID, req.MonthlyFee, end)
 	if err != nil {
-		response.WriteAPIResponse(w, http.StatusInternalServerError, "failed to update a subscription", err.Error())
+		response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogUpdateSub, err.Error())
 		return
 	}
 
-	response.WriteAPIResponse(w, http.StatusOK, "subscription updated successfully", nil)
+	response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogUpdateSub, nil)
 }
 
 func (sh *SubHandler) RemoveByID(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("sub_id")
 	subID, err := uuid.Parse(id)
 	if err != nil {
-		response.WriteAPIResponse(w, http.StatusBadRequest, "invalid subscription id", err.Error())
+		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidSubID, err.Error())
 		return
 	}
 
 	err = sh.Subs.Delete(subID)
 	if err != nil {
-		response.WriteAPIResponse(w, http.StatusInternalServerError, "failed to delete a subscription", err.Error())
+		response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogDeleteSub, err.Error())
 		return
 	}
 
-	response.WriteAPIResponse(w, http.StatusOK, "subscription deleted successfully", nil)
+	response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogDeleteSub, nil)
 }
 
 type listReq struct {
@@ -136,31 +148,56 @@ type listReq struct {
 	EndDate     string `json:"end_date"`
 }
 
-func decodeAndValidateListReq(w http.ResponseWriter, r *http.Request) (listReq, uuid.UUID, error) {
+type listReqValidated struct {
+	serviceName string
+	userID      string
+	startDate   time.Time
+	endDate     time.Time
+}
+
+func decodeAndValidateListReq(w http.ResponseWriter, r *http.Request) (listReqValidated, uuid.UUID, error) {
 	var req listReq
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteAPIResponse(w, http.StatusBadRequest, "invalid list request", err.Error())
-		return listReq{}, uuid.Nil, err
+		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidListReq, err.Error())
+		return listReqValidated{}, uuid.Nil, err
 	}
 
 	if len(req.ServiceName) > 255 {
-		response.WriteAPIResponse(w, http.StatusBadRequest, "service name is too long, 255 is allowed", nil)
-		return listReq{}, uuid.Nil, errors.New("service name too long")
+		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogLongServiceName, nil)
+		return listReqValidated{}, uuid.Nil, errors.New("service name too long")
 	}
 
 	var userID uuid.UUID
 	userID, err := uuid.Parse(req.UserID)
 	if err != nil && req.UserID != "" {
-		response.WriteAPIResponse(w, http.StatusBadRequest, "invalid user id", err.Error())
-		return listReq{}, uuid.Nil, err
+		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidUserID, err.Error())
+		return listReqValidated{}, uuid.Nil, err
 	}
 
 	if req.UserID == "" {
 		userID = uuid.Nil
 	}
 
-	return req, userID, nil
+	var s, e time.Time
+	s, err = time.Parse(util.DateFormat, req.StartDate)
+	if err != nil {
+		return listReqValidated{}, uuid.Nil, err
+	}
+
+	e, err = time.Parse(util.DateFormat, req.EndDate)
+	if err != nil {
+		return listReqValidated{}, uuid.Nil, err
+	}
+
+	reqV := listReqValidated{
+		serviceName: req.ServiceName,
+		userID:      req.UserID,
+		startDate:   s,
+		endDate:     e,
+	}
+
+	return reqV, userID, nil
 }
 
 func (sh *SubHandler) ListSubs(w http.ResponseWriter, r *http.Request) {
@@ -169,9 +206,9 @@ func (sh *SubHandler) ListSubs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	subs := sh.Subs.List(req.ServiceName, userID, req.StartDate, req.EndDate)
+	subs := sh.Subs.List(req.serviceName, userID, req.startDate, req.endDate, util.DateFormat)
 
-	response.WriteAPIResponse(w, http.StatusOK, "subscriptions listed successfully", subs)
+	response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogListSubs, subs)
 }
 
 func (sh *SubHandler) SumSubs(w http.ResponseWriter, r *http.Request) {
@@ -180,7 +217,7 @@ func (sh *SubHandler) SumSubs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sum := sh.Subs.GetSum(req.ServiceName, userID, req.StartDate, req.EndDate)
+	sum := sh.Subs.GetSum(req.serviceName, userID, req.startDate, req.endDate)
 
-	response.WriteAPIResponse(w, http.StatusOK, "total sum listed successfully", sum)
+	response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogSumSubs, sum)
 }

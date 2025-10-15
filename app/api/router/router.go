@@ -8,6 +8,7 @@ import (
 	"task_test/internal/logger"
 	readConfig "task_test/internal/read_config"
 	"task_test/internal/repo"
+	"task_test/util"
 
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
@@ -21,7 +22,7 @@ func gracefulStop(repo repo.SubRepo) {
 	repo.Close()
 	err := logger.Log.Sync()
 	if err != nil {
-		logger.Log.Error("failed to sync logger", zap.Error(err))
+		logger.Log.Error(util.ErrLogLoggerSync, zap.Error(err))
 	}
 }
 
