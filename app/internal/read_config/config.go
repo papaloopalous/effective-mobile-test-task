@@ -26,14 +26,15 @@ func GetSrvInfo() (string, time.Duration) {
 }
 
 func GetDBInfo() (string, time.Duration) {
-	dsnTemplate := "postgres://%s:%s@%s%s/%s?sslmode=disable"
+	dsnTemplate := "postgres://%s:%s@%s%s/%s?sslmode=%s"
 	dbUser := viper.GetString("db.user")
 	dbPass := viper.GetString("db.password")
 	dbHost := viper.GetString("db.host")
 	dbPort := viper.GetString("db.port")
 	dbName := viper.GetString("db.name")
+	sslMode := viper.GetString("db.sslmode")
 
 	slowThreshold := viper.GetDuration("slow_threshold")
 
-	return fmt.Sprintf(dsnTemplate, dbUser, dbPass, dbHost, dbPort, dbName), slowThreshold
+	return fmt.Sprintf(dsnTemplate, dbUser, dbPass, dbHost, dbPort, dbName, sslMode), slowThreshold
 }

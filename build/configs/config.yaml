@@ -6,5 +6,6 @@ db:
   host: "postgres"
   port: ":5432"
   name: "test"
+  sslmode: "disable"
 
 slow_threshold: 200ms

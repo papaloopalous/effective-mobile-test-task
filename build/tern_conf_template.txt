@@ -1,0 +1,11 @@
+[database]
+host = ${DB_HOST}
+port = ${DB_PORT}
+database = ${DB_NAME}
+user = ${DB_USER}
+password = ${DB_PASSWORD}
+sslmode = ${DB_SSLMODE}
+
+[migrations]
+path = "./migrations"
+table = "schema_migrations"

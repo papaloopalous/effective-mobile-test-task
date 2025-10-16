@@ -6,3 +6,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     start_date DATE NOT NULL,
     end_date DATE NOT NULL
 );
+
+---- create above / drop below ----
+
+DROP TABLE IF EXISTS subscriptions;

@@ -3,8 +3,9 @@ server_port: ":${MAIN_PORT}"
 db:
   user: "${DB_USER}"
   password: "${DB_PASSWORD}"
-  host: "${DB_HOST}"
-  port: ":${DB_PORT}"
+  host: "postgres"
+  port: ":5432"
   name: "${DB_NAME}"
+  sslmode: "${DB_SSLMODE}"
 
 slow_threshold: ${SLOW_THRESHOLD}

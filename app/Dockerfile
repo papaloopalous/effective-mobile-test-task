@@ -7,5 +7,4 @@ FROM alpine AS runtime
 WORKDIR /app
 COPY --from=builder /go/src/app/app /app/
 RUN chmod +x ./app
-EXPOSE 8080/tcp
 ENTRYPOINT ./app
