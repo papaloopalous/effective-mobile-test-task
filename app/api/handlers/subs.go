@@ -29,7 +29,9 @@ func (sh *SubHandler) AddSub(w http.ResponseWriter, r *http.Request) {
 
 	var req addReq
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&req); err != nil {
 		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidAddReq, err.Error())
 		return
 	}
@@ -40,9 +42,20 @@ func (sh *SubHandler) AddSub(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(req.ServiceName) > 255 {
+	switch {
+
+	case req.NMonths <= 0:
+		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogNonPosNMonths, nil)
+		return
+
+	case req.MonthlyFee < 0:
+		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogNegMonthlyFee, nil)
+		return
+
+	case len(req.ServiceName) > 255:
 		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogLongServiceName, nil)
 		return
+
 	}
 
 	id, err := sh.Subs.Create(req.ServiceName, req.MonthlyFee, req.UserID, start, req.NMonths)
@@ -80,7 +93,9 @@ type updateReq struct {
 func (sh *SubHandler) UpdateByID(w http.ResponseWriter, r *http.Request) {
 	var req updateReq
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&req); err != nil {
 		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidUpdateReq, err.Error())
 		return
 	}
@@ -97,20 +112,22 @@ func (sh *SubHandler) UpdateByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var s, e time.Time
+	var s time.Time
 	s, err = time.Parse(util.DateFormat, info.StartDate)
 	if err != nil {
 		response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogParseStartDate, err.Error())
 	}
 
-	e, err = time.Parse(util.DateFormat, info.EndDate)
-	if err != nil {
-		response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogParseEndDate, err.Error())
-	}
+	switch {
 
-	if s.Compare(e) == 1 {
-		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLodEndBeforeStartDate, map[string]string{"start": s.Format(util.DateFormat), "end": e.Format(util.DateFormat)})
+	case req.MonthlyFee < 0:
+		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogNegMonthlyFee, nil)
 		return
+
+	case s.Compare(end) == 1:
+		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLodEndBeforeStartDate, map[string]string{"start": s.Format(util.DateFormat), "end": end.Format(util.DateFormat)})
+		return
+
 	}
 
 	err = sh.Subs.Update(req.SubID, req.MonthlyFee, end)
@@ -156,7 +173,9 @@ type listReqValidated struct {
 func decodeAndValidateListReq(w http.ResponseWriter, r *http.Request) (listReqValidated, uuid.UUID, error) {
 	var req listReq
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&req); err != nil {
 		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidListReq, err.Error())
 		return listReqValidated{}, uuid.Nil, err
 	}

@@ -1,7 +1,7 @@
 package readconfig
 
 import (
-	"fmt"
+	"net/url"
 	"task_test/internal/logger"
 
 	"time"
@@ -26,15 +26,35 @@ func GetSrvInfo() (string, time.Duration) {
 }
 
 func GetDBInfo() (string, time.Duration) {
-	dsnTemplate := "postgres://%s:%s@%s%s/%s?sslmode=%s"
 	dbUser := viper.GetString("db.user")
 	dbPass := viper.GetString("db.password")
 	dbHost := viper.GetString("db.host")
 	dbPort := viper.GetString("db.port")
 	dbName := viper.GetString("db.name")
 	sslMode := viper.GetString("db.sslmode")
-
+	minConns := viper.GetString("db.pool.min_conns")
+	maxConns := viper.GetString("db.pool.max_conns")
+	maxConnLifetime := viper.GetString("db.pool.max_conn_lifetime")
+	maxConnIdleTime := viper.GetString("db.pool.max_conn_idle_time")
+	healthCheckPeriod := viper.GetString("db.pool.health_check_period")
 	slowThreshold := viper.GetDuration("slow_threshold")
 
-	return fmt.Sprintf(dsnTemplate, dbUser, dbPass, dbHost, dbPort, dbName, sslMode), slowThreshold
+	u := url.URL{
+		Scheme: "postgres",
+		Path:   "/" + dbName,
+		Host:   dbHost + ":" + dbPort,
+		User:   url.UserPassword(dbUser, dbPass),
+	}
+
+	q := url.Values{}
+	q.Set("sslmode", sslMode)
+	q.Set("pool_min_conns", minConns)
+	q.Set("pool_max_conns", maxConns)
+	q.Set("pool_max_conn_lifetime", maxConnLifetime)
+	q.Set("pool_max_conn_idle_time", maxConnIdleTime)
+	q.Set("pool_health_check_period", healthCheckPeriod)
+
+	u.RawQuery = q.Encode()
+
+	return u.String(), slowThreshold
 }

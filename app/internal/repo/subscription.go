@@ -53,8 +53,7 @@ func (sd *SubData) Create(serviceName string, monthlyFee int, userID uuid.UUID, 
 
 	id := uuid.New()
 	query := `INSERT INTO subscriptions (id, service_name, monthly_fee, user_id, start_date, end_date)
-	VALUES ($1, $2, $3, $4, $5, $6)
-	ON CONFLICT DO NOTHING`
+	VALUES ($1, $2, $3, $4, $5, $6)`
 
 	err := sd.sqlDB.Exec(ctx, query, id, serviceName, monthlyFee, userID, startDate, end)
 	if err != nil {

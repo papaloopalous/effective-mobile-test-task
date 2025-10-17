@@ -18,6 +18,8 @@ const (
 	ErrLogInvalidUserID      = "invalid user id"
 	ErrLogWriteResp          = "failed to write a response"
 	ErrLogLoggerSync         = "failed to sync logger"
+	ErrLogNegMonthlyFee      = "monthly fee could not be negative"
+	ErrLogNonPosNMonths      = "number of months must be positive"
 )
 
 // success log messages
