@@ -116,6 +116,7 @@ func (sh *SubHandler) UpdateByID(w http.ResponseWriter, r *http.Request) {
 	s, err = time.Parse(util.DateFormat, info.StartDate)
 	if err != nil {
 		response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogParseStartDate, err.Error())
+		return
 	}
 
 	switch {
@@ -239,8 +240,8 @@ func decodeAndValidateListReq(w http.ResponseWriter, r *http.Request) (listReqVa
 	}
 
 	if req.Cursor.LastID != "" {
-		lastID, err = uuid.Parse(string(req.Cursor.LastID))
-		if err != nil && req.UserID != "" {
+		lastID, err = uuid.Parse(req.Cursor.LastID)
+		if err != nil {
 			response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidCursorLastID, err.Error())
 			return listReqValidated{}, err
 		}

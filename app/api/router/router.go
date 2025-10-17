@@ -1,6 +1,7 @@
 package router
 
 import (
+	"errors"
 	"os"
 	"os/signal"
 	"syscall"
@@ -21,7 +22,7 @@ func gracefulStop(repo repo.SubRepo) {
 	logger.Log.Info("closing repo and logger")
 	repo.Close()
 	err := logger.Log.Sync()
-	if err != nil {
+	if err != nil && !errors.Is(err, syscall.EINVAL) && !errors.Is(err, syscall.ENOTTY) {
 		logger.Log.Error(util.ErrLogLoggerSync, zap.Error(err))
 	}
 }

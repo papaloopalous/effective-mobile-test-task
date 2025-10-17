@@ -24,6 +24,7 @@ const (
 	ErrLogSumSub               = "failed to get total sum of subscriptions"
 	ErrLogParseCursorLastStart = "failed to parse cursor last start date"
 	ErrLogInvalidCursorLastID  = "failed to parse cursor last id"
+	ErrLogInvalidSumReq        = "invalid sum request"
 )
 
 // success log messages

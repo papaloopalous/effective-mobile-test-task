@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
+  workflow_dispatch: {}
+
+env:
+  GO_VERSION: '1.24'
+  WORKDIR: ./app
+
+jobs:
+  build:
+    name: Build main
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Go mod download
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          go mod download
+          go mod tidy
+
+      - name: Build
+        working-directory: ${{ env.WORKDIR }}
+        run: go build -v ./...
+
+  lint:
+    name: Lint main
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Go mod download
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          go mod download
+          go mod tidy
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.1.1
+          working-directory: ${{ env.WORKDIR }}
+          args: --timeout=5m
+
+  test:
+    name: Test with coverage
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Go mod download
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          go mod download
+          go mod tidy
+
+      - name: Run unit tests
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          go test ./tests -coverpkg=task_test/api/handlers,task_test/internal/repo -coverprofile=coverage.out && go tool cover -html=coverage.out -o coverage.html
+
+      - name: Generate coverage HTML
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          go tool cover -html=coverage.out -o coverage.html
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            ${{ env.WORKDIR }}/coverage.html
+
+      - name: Create logs directory
+        run: mkdir -p ${{ env.WORKDIR }}/../build/logs
+
+      - name: Create configs
+        working-directory: ${{ env.WORKDIR }}/../build
+        run: |
+          export MAIN_PORT=8080
+          export DB_HOST=localhost
+          export DB_PORT=5432
+          export DB_USER=test
+          export DB_PASSWORD=test
+          export DB_NAME=test
+          export DB_SSLMODE=disable
+          export SLOW_THRESHOLD=200ms
+          export DB_POOL_MIN_CONNS=2
+          export DB_POOL_MAX_CONNS=20
+          export DB_POOL_MAX_CONN_LIFETIME=15m
+          export DB_POOL_MAX_CONN_IDLE_TIME=5m
+          export DB_POOL_HEALTH_CHECK_PERIOD=1m
+          make generate
+
+      - name: Setup integration service
+        uses: supercharge/setup-docker-compose@v2
+        with:
+          compose-file-path: ${{ env.WORKDIR }}/../build/compose.yml
+          options: up -d
+
+      - name: Apply tern migrations
+        working-directory: ${{ env.WORKDIR }}/../build
+        run: |
+          go install github.com/jackc/tern/v2@latest
+          tern migrate --config ./db/tern.conf --migrations ./db/migrations 
+
+      - name: Run integration tests
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          env INTEGRATION=1 BASE_URL=http://localhost:8080 go test ./tests/integration_test.go -v 

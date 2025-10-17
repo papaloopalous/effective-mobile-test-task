@@ -119,7 +119,7 @@ func (sd *SubData) List(serviceName string, userID uuid.UUID, startDate time.Tim
 	var (
 		query strings.Builder
 		args  []any
-		n     = 0
+		n     int
 	)
 
 	_, err := query.WriteString(`SELECT service_name, monthly_fee, user_id, start_date, end_date, id
@@ -215,7 +215,7 @@ func (sd *SubData) List(serviceName string, userID uuid.UUID, startDate time.Tim
 		lastID = id
 	}
 
-	next := new(PageCursor)
+	var next *PageCursor
 	if gotExtra {
 		next = &PageCursor{
 			LastStart: lastStart,
@@ -232,7 +232,7 @@ func (sd *SubData) GetSum(serviceName string, userID uuid.UUID, startDate time.T
 	var (
 		query strings.Builder
 		args  []any
-		n     = 0
+		n     int
 	)
 
 	_, err := query.WriteString(`SELECT COALESCE(SUM(COALESCE(s.monthly_fee, 0) *
