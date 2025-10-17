@@ -4,6 +4,8 @@ package repo
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"task_test/internal/db"
 	"task_test/internal/logger"
 
@@ -106,68 +108,180 @@ func (sd *SubData) Delete(subID uuid.UUID) error {
 	return sd.sqlDB.Exec(ctx, query, subID)
 }
 
-func (sd *SubData) List(serviceName string, userID uuid.UUID, startDate time.Time, endDate time.Time, format string) []SubInfo {
+type PageCursor struct {
+	LastStart time.Time
+	LastID    uuid.UUID
+	Limit     int
+}
+
+func (sd *SubData) List(serviceName string, userID uuid.UUID, startDate time.Time, endDate time.Time, format string, cur PageCursor) ([]SubInfo, *PageCursor, error) {
+
+	var (
+		query strings.Builder
+		args  []any
+		n     = 0
+	)
+
+	_, err := query.WriteString(`SELECT service_name, monthly_fee, user_id, start_date, end_date, id
+	FROM subscriptions
+	WHERE daterange(start_date, end_date, '[]') && daterange($1, $2, '[]')`)
+	if err != nil {
+		return nil, nil, err
+	}
+	args = append(args, startDate, endDate)
+	n = 2
+
+	if serviceName != "" {
+		n++
+		_, err := query.WriteString(fmt.Sprintf(" AND service_name = $%d", n))
+		if err != nil {
+			return nil, nil, err
+		}
+		args = append(args, serviceName)
+	}
+
+	if userID != uuid.Nil {
+		n++
+		_, err := query.WriteString(fmt.Sprintf(" AND user_id = $%d", n))
+		if err != nil {
+			return nil, nil, err
+		}
+		args = append(args, userID)
+	}
+
+	if !cur.LastStart.IsZero() && cur.LastID != uuid.Nil {
+		n++
+		lastStartIndex := n
+		n++
+		lastIdIndex := n
+		args = append(args, cur.LastStart, cur.LastID)
+
+		_, err := query.WriteString(fmt.Sprintf(" AND (start_date > $%d OR (start_date = $%d AND id > $%d))", lastStartIndex, lastStartIndex, lastIdIndex))
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	_, err = query.WriteString(" ORDER BY start_date ASC, id ASC")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	limit := cur.Limit
+	n++
+	args = append(args, limit+1)
+	_, err = query.WriteString(fmt.Sprintf(" LIMIT $%d", n))
+	if err != nil {
+		return nil, nil, err
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	query := `SELECT service_name, monthly_fee, user_id, start_date, end_date
-	FROM subscriptions
-	WHERE (service_name = $1 OR $1 = '')
-		AND (user_id = $2 OR $2 = '00000000-0000-0000-0000-000000000000')
-		AND start_date >= $3 AND end_date <= $4
-	ORDER BY start_date ASC`
-
-	rows, err := sd.sqlDB.Query(ctx, query, serviceName, userID, startDate, endDate)
+	rows, err := sd.sqlDB.Query(ctx, query.String(), args...)
 	if err != nil {
-		return []SubInfo{}
+		return nil, nil, err
 	}
 	defer rows.Close()
 
 	res := make([]SubInfo, 0)
+	var (
+		gotExtra  bool
+		lastStart time.Time
+		lastID    uuid.UUID
+	)
+
 	for rows.Next() {
 		var info SubInfo
 		var s, e time.Time
-		err := rows.Scan(&info.ServiceName, &info.MonthlyFee, &info.UserID, &s, &e)
+		var id uuid.UUID
+		err := rows.Scan(&info.ServiceName, &info.MonthlyFee, &info.UserID, &s, &e, &id)
 		if err != nil {
-			continue
+			return nil, nil, err
+		}
+
+		if len(res) == limit {
+			gotExtra = true
+			lastStart = s
+			lastID = id
+			break
 		}
 
 		info.StartDate = s.Format(format)
 		info.EndDate = e.Format(format)
 
 		res = append(res, info)
+		lastStart = s
+		lastID = id
 	}
 
-	return res
+	next := new(PageCursor)
+	if gotExtra {
+		next = &PageCursor{
+			LastStart: lastStart,
+			LastID:    lastID,
+			Limit:     limit,
+		}
+	}
+
+	return res, next, nil
 }
 
-func (sd *SubData) GetSum(serviceName string, userID uuid.UUID, startDate time.Time, endDate time.Time) int64 {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+func (sd *SubData) GetSum(serviceName string, userID uuid.UUID, startDate time.Time, endDate time.Time) (int64, error) {
 
-	query := `SELECT COALESCE(SUM(COALESCE(s.monthly_fee, 0) *
+	var (
+		query strings.Builder
+		args  []any
+		n     = 0
+	)
+
+	_, err := query.WriteString(`SELECT COALESCE(SUM(COALESCE(s.monthly_fee, 0) *
 		GREATEST(
 			0,
 			(
-				(EXTRACT(YEAR FROM date_trunc('month', LEAST(s.end_date, ($4::date - interval '1 day')))) * 12
-				+ EXTRACT(MONTH FROM date_trunc('month', LEAST(s.end_date, ($4::date - interval '1 day')))))
-				- (EXTRACT(YEAR FROM date_trunc('month', GREATEST(s.start_date, $3))) * 12
-				+ EXTRACT(MONTH FROM date_trunc('month', GREATEST(s.start_date, $3))))
+				(EXTRACT(YEAR FROM date_trunc('month', LEAST(s.end_date, ($2::date - interval '1 day')))) * 12
+				+ EXTRACT(MONTH FROM date_trunc('month', LEAST(s.end_date, ($2::date - interval '1 day')))))
+				- (EXTRACT(YEAR FROM date_trunc('month', GREATEST(s.start_date, $1))) * 12
+				+ EXTRACT(MONTH FROM date_trunc('month', GREATEST(s.start_date, $1))))
 				+ 1
 			)
 		)
 	), 0) AS total_sum
 	FROM subscriptions s
-	WHERE (s.service_name = $1 OR $1 = '')
-		AND (s.user_id = $2 OR $2 = '00000000-0000-0000-0000-000000000000')
-		AND s.start_date < $4 AND s.end_date >= $3;`
-
-	row := sd.sqlDB.QueryRow(ctx, query, serviceName, userID, startDate, endDate)
-	var res int64
-	err := row.Scan(&res)
+	WHERE daterange(start_date, end_date, '[]') && daterange($1, $2, '[]')`)
 	if err != nil {
-		return 0
+		return 0, err
+	}
+	args = append(args, startDate, endDate)
+	n = 2
+
+	if serviceName != "" {
+		n++
+		_, err := query.WriteString(fmt.Sprintf(" AND service_name = $%d", n))
+		if err != nil {
+			return 0, err
+		}
+		args = append(args, serviceName)
 	}
 
-	return res
+	if userID != uuid.Nil {
+		n++
+		_, err := query.WriteString(fmt.Sprintf(" AND user_id = $%d", n))
+		if err != nil {
+			return 0, err
+		}
+		args = append(args, userID)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	row := sd.sqlDB.QueryRow(ctx, query.String(), args...)
+	var res int64
+	err = row.Scan(&res)
+	if err != nil {
+		return 0, err
+	}
+
+	return res, nil
 }

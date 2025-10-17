@@ -156,40 +156,60 @@ func (sh *SubHandler) RemoveByID(w http.ResponseWriter, r *http.Request) {
 	response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogDeleteSub, nil)
 }
 
+type cursorIn struct {
+	LastStart string `json:"last_start,omitempty"`
+	LastID    string `json:"last_id,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
+}
+
 type listReq struct {
-	ServiceName string `json:"service_name"`
-	UserID      string `json:"user_id"`
-	StartDate   string `json:"start_date"`
-	EndDate     string `json:"end_date"`
+	ServiceName string   `json:"service_name"`
+	UserID      string   `json:"user_id"`
+	StartDate   string   `json:"start_date"`
+	EndDate     string   `json:"end_date"`
+	Cursor      cursorIn `json:"cursor,omitempty"`
+}
+
+type cursorOut struct {
+	LastStart string `json:"last_start"`
+	LastID    string `json:"last_id"`
+	Limit     int    `json:"limit"`
+}
+
+type listResp struct {
+	Subscriptions []repo.SubInfo `json:"subscriptions"`
+	Cursor        *cursorOut     `json:"cursor,omitempty"`
 }
 
 type listReqValidated struct {
 	serviceName string
-	userID      string
+	userID      uuid.UUID
 	startDate   time.Time
 	endDate     time.Time
+	lastStart   time.Time
+	lastID      uuid.UUID
+	limit       int
 }
 
-func decodeAndValidateListReq(w http.ResponseWriter, r *http.Request) (listReqValidated, uuid.UUID, error) {
+func decodeAndValidateListReq(w http.ResponseWriter, r *http.Request) (listReqValidated, error) {
 	var req listReq
 
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&req); err != nil {
 		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidListReq, err.Error())
-		return listReqValidated{}, uuid.Nil, err
+		return listReqValidated{}, err
 	}
 
 	if len(req.ServiceName) > 255 {
 		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogLongServiceName, nil)
-		return listReqValidated{}, uuid.Nil, errors.New("service name too long")
+		return listReqValidated{}, errors.New("service name too long")
 	}
 
-	var userID uuid.UUID
 	userID, err := uuid.Parse(req.UserID)
 	if err != nil && req.UserID != "" {
 		response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidUserID, err.Error())
-		return listReqValidated{}, uuid.Nil, err
+		return listReqValidated{}, err
 	}
 
 	if req.UserID == "" {
@@ -199,42 +219,94 @@ func decodeAndValidateListReq(w http.ResponseWriter, r *http.Request) (listReqVa
 	var s, e time.Time
 	s, err = time.Parse(util.DateFormat, req.StartDate)
 	if err != nil {
-		return listReqValidated{}, uuid.Nil, err
+		return listReqValidated{}, err
 	}
 
 	e, err = time.Parse(util.DateFormat, req.EndDate)
 	if err != nil {
-		return listReqValidated{}, uuid.Nil, err
+		return listReqValidated{}, err
+	}
+
+	var lastID uuid.UUID
+	var lastStart time.Time
+	limit := 50
+	if req.Cursor.LastStart != "" {
+		lastStart, err = time.Parse(util.DateFormat, req.Cursor.LastStart)
+		if err != nil {
+			response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogParseCursorLastStart, err.Error())
+			return listReqValidated{}, err
+		}
+	}
+
+	if req.Cursor.LastID != "" {
+		lastID, err = uuid.Parse(string(req.Cursor.LastID))
+		if err != nil && req.UserID != "" {
+			response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidCursorLastID, err.Error())
+			return listReqValidated{}, err
+		}
+	}
+
+	if req.Cursor.Limit > 0 {
+		limit = req.Cursor.Limit
 	}
 
 	reqV := listReqValidated{
 		serviceName: req.ServiceName,
-		userID:      req.UserID,
+		userID:      userID,
 		startDate:   s,
 		endDate:     e,
+		lastStart:   lastStart,
+		lastID:      lastID,
+		limit:       limit,
 	}
 
-	return reqV, userID, nil
+	return reqV, nil
 }
 
 func (sh *SubHandler) ListSubs(w http.ResponseWriter, r *http.Request) {
-	req, userID, err := decodeAndValidateListReq(w, r)
+	req, err := decodeAndValidateListReq(w, r)
 	if err != nil {
 		return
 	}
 
-	subs := sh.Subs.List(req.serviceName, userID, req.startDate, req.endDate, util.DateFormat)
+	cur := repo.PageCursor{
+		LastStart: req.lastStart,
+		LastID:    req.lastID,
+		Limit:     req.limit,
+	}
 
-	response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogListSubs, subs)
+	subs, nextCur, err := sh.Subs.List(req.serviceName, req.userID, req.startDate, req.endDate, util.DateFormat, cur)
+	if err != nil {
+		response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogListSub, err.Error())
+		return
+	}
+
+	var next *cursorOut
+	if nextCur != nil && nextCur.LastID != uuid.Nil && !nextCur.LastStart.IsZero() {
+		next = &cursorOut{
+			LastStart: nextCur.LastStart.Format(util.DateFormat),
+			LastID:    nextCur.LastID.String(),
+			Limit:     nextCur.Limit,
+		}
+	}
+
+	response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogListSubs, listResp{
+		Subscriptions: subs,
+		Cursor:        next,
+	})
 }
 
 func (sh *SubHandler) SumSubs(w http.ResponseWriter, r *http.Request) {
-	req, userID, err := decodeAndValidateListReq(w, r)
+	req, err := decodeAndValidateListReq(w, r)
 	if err != nil {
 		return
 	}
 
-	sum := sh.Subs.GetSum(req.serviceName, userID, req.startDate, req.endDate)
+	sum, err := sh.Subs.GetSum(req.serviceName, req.userID, req.startDate, req.endDate)
+	if err != nil {
+		response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogSumSub, err.Error())
+		return
+	}
 
 	response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogSumSubs, sum)
 }
