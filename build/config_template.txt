@@ -4,11 +4,11 @@ db:
   user: "${DB_USER}"
   password: "${DB_PASSWORD}"
   host: "postgres"
-  port: ":5432"
+  port: "5432"
   name: "${DB_NAME}"
   sslmode: "${DB_SSLMODE}"
   pool:
-    min_conns: "${DB_POOL_MIX_CONNS}"
+    min_conns: "${DB_POOL_MIN_CONNS}"
     max_conns: "${DB_POOL_MAX_CONNS}"
     max_conn_lifetime: "${DB_POOL_MAX_CONN_LIFETIME}"
     max_conn_idle_time: "${DB_POOL_MAX_CONN_IDLE_TIME}"

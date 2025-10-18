@@ -67,6 +67,7 @@ jobs:
 
   test:
     name: Test with coverage
+    needs: [build, lint]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
     steps:
@@ -87,12 +88,8 @@ jobs:
       - name: Run unit tests
         working-directory: ${{ env.WORKDIR }}
         run: |
+          mkdir -p ./tests/logs
           go test ./tests -coverpkg=task_test/api/handlers,task_test/internal/repo -coverprofile=coverage.out && go tool cover -html=coverage.out -o coverage.html
-
-      - name: Generate coverage HTML
-        working-directory: ${{ env.WORKDIR }}
-        run: |
-          go tool cover -html=coverage.out -o coverage.html
 
       - name: Upload coverage
         uses: actions/upload-artifact@v4
@@ -101,10 +98,17 @@ jobs:
           path: |
             ${{ env.WORKDIR }}/coverage.html
 
-      - name: Create logs directory
-        run: mkdir -p ${{ env.WORKDIR }}/../build/logs
+      - name: Build docker image
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          docker build -f Dockerfile -t papaloopalous/effective-mobile-test:latest .
 
-      - name: Create configs
+      - name: Create logs and configs directory
+        run: |
+          mkdir -p ${{ env.WORKDIR }}/../build/logs
+          mkdir -p ${{ env.WORKDIR }}/../build/configs
+
+      - name: Create configs and run test service
         working-directory: ${{ env.WORKDIR }}/../build
         run: |
           export MAIN_PORT=8080
@@ -120,21 +124,21 @@ jobs:
           export DB_POOL_MAX_CONN_LIFETIME=15m
           export DB_POOL_MAX_CONN_IDLE_TIME=5m
           export DB_POOL_HEALTH_CHECK_PERIOD=1m
+
           make generate
+          docker compose up -d
 
-      - name: Setup integration service
-        uses: supercharge/setup-docker-compose@v2
-        with:
-          compose-file-path: ${{ env.WORKDIR }}/../build/compose.yml
-          options: up -d
+          echo "waiting for postgres"
+          until docker compose ps postgres | grep -q "(healthy)"; do
+            sleep 2
+            docker compose ps postgres
+          done
 
-      - name: Apply tern migrations
-        working-directory: ${{ env.WORKDIR }}/../build
-        run: |
           go install github.com/jackc/tern/v2@latest
-          tern migrate --config ./db/tern.conf --migrations ./db/migrations 
+          tern migrate --config ./db/tern.conf --migrations ./db/migrations
 
-      - name: Run integration tests
-        working-directory: ${{ env.WORKDIR }}
-        run: |
-          env INTEGRATION=1 BASE_URL=http://localhost:8080 go test ./tests/integration_test.go -v 
+          cd ../app
+          env INTEGRATION=1 BASE_URL=http://localhost:8080 go test ./tests/integration_test.go -v
+          
+          cd ../build
+          docker compose down -v

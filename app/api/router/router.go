@@ -2,6 +2,7 @@ package router
 
 import (
 	"errors"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -37,6 +38,10 @@ func CreateNewRouter() *mux.Router {
 	subHandler := &handlers.SubHandler{
 		Subs: subRepo,
 	}
+
+	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	}).Methods("GET")
 
 	router.HandleFunc("/addSub", subHandler.AddSub).Methods("POST")
 	router.HandleFunc("/getSub", subHandler.GetByID).Methods("GET")
