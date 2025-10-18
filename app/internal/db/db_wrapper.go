@@ -2,9 +2,9 @@ package db
 
 import (
 	"context"
-	"task_test/internal/logger"
-
 	"time"
+
+	"task_test/internal/logger"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -12,10 +12,15 @@ import (
 )
 
 type DB interface {
+	// QueryRow - выполнить запрос, ожидающий одну строку
 	QueryRow(ctx context.Context, query string, args ...any) pgx.Row
+	// Query - выполнить запрос, возвращающий набор строк
 	Query(ctx context.Context, query string, args ...any) (pgx.Rows, error)
+	// Ping - проверить соединение с БД
 	Ping(ctx context.Context) error
+	// Exec - выполнить команду без возврата набора строк
 	Exec(ctx context.Context, query string, args ...any) error
+	// Close - закрыть соединение/пул
 	Close()
 }
 
@@ -24,6 +29,7 @@ type Pool struct {
 	slowThreshold time.Duration
 }
 
+// NewDB - инициализирует пул соединений PostgreSQL с заданным порогом медленных запросов
 func NewDB(ctx context.Context, dsn string, slowThreshold time.Duration) (*Pool, error) {
 	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
@@ -49,6 +55,7 @@ func NewDB(ctx context.Context, dsn string, slowThreshold time.Duration) (*Pool,
 	return wrapper, nil
 }
 
+// logQuery - служебная функция логирования запросов к БД
 func (w *Pool) logQuery(method string, query string, args []any, elapsed time.Duration, rows int64, err error) {
 	prefix := ""
 	switch {
@@ -63,14 +70,17 @@ func (w *Pool) logQuery(method string, query string, args []any, elapsed time.Du
 	logger.Log.Info("db query executed", zap.String("status", prefix), zap.String("method", method), zap.Duration("elapsed", elapsed), zap.String("query", query), zap.Any("args", args), zap.Int64("rows", rows), zap.Error(err))
 }
 
+// Close - закрывает пул соединений
 func (w *Pool) Close() {
 	w.pool.Close()
 }
 
+// Ping - проверяет доступность БД
 func (w *Pool) Ping(ctx context.Context) error {
 	return w.pool.Ping(ctx)
 }
 
+// QueryRow - выполняет запрос и возвращает одну строку
 func (w *Pool) QueryRow(ctx context.Context, query string, args ...any) pgx.Row {
 	start := time.Now()
 	row := w.pool.QueryRow(ctx, query, args...)
@@ -79,6 +89,7 @@ func (w *Pool) QueryRow(ctx context.Context, query string, args ...any) pgx.Row 
 	return row
 }
 
+// Query - выполняет запрос и возвращает набор строк
 func (w *Pool) Query(ctx context.Context, query string, args ...any) (pgx.Rows, error) {
 	start := time.Now()
 	rows, err := w.pool.Query(ctx, query, args...)
@@ -87,6 +98,7 @@ func (w *Pool) Query(ctx context.Context, query string, args ...any) (pgx.Rows, 
 	return rows, err
 }
 
+// Exec - выполняет команду и логирует количество затронутых строк
 func (w *Pool) Exec(ctx context.Context, query string, args ...any) error {
 	start := time.Now()
 	tag, err := w.pool.Exec(ctx, query, args...)

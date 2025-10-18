@@ -3,15 +3,17 @@ package tests
 import (
 	"errors"
 	"net/http"
+	"testing"
+	"time"
+
 	"task_test/api/handlers"
 	repoPkg "task_test/internal/repo"
 	"task_test/util"
-	"testing"
-	"time"
 
 	"github.com/google/uuid"
 )
 
+// TestAddSub_DecodeError - некорректное тело запроса
 func TestAddSub_DecodeError(t *testing.T) {
 	h := &handlers.SubHandler{Subs: &mockSubRepo{}}
 
@@ -28,6 +30,7 @@ func TestAddSub_DecodeError(t *testing.T) {
 	}
 }
 
+// TestAddSub_ParseStartError - ошибка парсинга даты начала
 func TestAddSub_ParseStartError(t *testing.T) {
 	h := &handlers.SubHandler{Subs: &mockSubRepo{}}
 
@@ -45,6 +48,7 @@ func TestAddSub_ParseStartError(t *testing.T) {
 	}
 }
 
+// TestAddSub_ValidateErrors - ошибки валидации запроса (месяцы, цена, длина имени)
 func TestAddSub_ValidateErrors(t *testing.T) {
 	h := &handlers.SubHandler{Subs: &mockSubRepo{}}
 
@@ -91,6 +95,7 @@ func TestAddSub_ValidateErrors(t *testing.T) {
 	}
 }
 
+// TestAddSub_CreateErrorAndOK - ошибка создания и успешный кейс
 func TestAddSub_CreateErrorAndOK(t *testing.T) {
 	uid := uuid.New()
 	hErr := &handlers.SubHandler{Subs: &mockSubRepo{createFn: func(serviceName string, monthlyFee int, userID uuid.UUID, startDate time.Time, nMonths int) (uuid.UUID, error) {
@@ -125,6 +130,7 @@ func TestAddSub_CreateErrorAndOK(t *testing.T) {
 	}
 }
 
+// TestGetByID_ParseAndRepoErrorsAndOK - ошибка парсинга ID, ошибка репозитория и успешный кейс
 func TestGetByID_ParseAndRepoErrorsAndOK(t *testing.T) {
 	hBad := &handlers.SubHandler{Subs: &mockSubRepo{}}
 	rr, req := newReq(http.MethodGet, "/getSub?sub_id=bad", "")
@@ -167,6 +173,7 @@ func TestGetByID_ParseAndRepoErrorsAndOK(t *testing.T) {
 	}
 }
 
+// TestUpdateByID_DecodeAndParseErrors - ошибка декодирования и парсинга даты окончания
 func TestUpdateByID_DecodeAndParseErrors(t *testing.T) {
 	h := &handlers.SubHandler{Subs: &mockSubRepo{}}
 
@@ -195,6 +202,7 @@ func TestUpdateByID_DecodeAndParseErrors(t *testing.T) {
 	}
 }
 
+// TestUpdateByID_NotFound_ParseStart_NegFee_EndBeforeStart_UpdateErr_OK - набор проверок: не найдено, парсинг start, отриц. стоимость, конец до начала, ошибка обновления и ОК
 func TestUpdateByID_NotFound_ParseStart_NegFee_EndBeforeStart_UpdateErr_OK(t *testing.T) {
 	id := uuid.New()
 	hNotFound := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(subID uuid.UUID, format string) (repoPkg.SubInfo, error) {
@@ -276,6 +284,7 @@ func TestUpdateByID_NotFound_ParseStart_NegFee_EndBeforeStart_UpdateErr_OK(t *te
 	}
 }
 
+// TestRemoveByID_Parse_DeleteErr_OK - ошибка парсинга ID, ошибка удаления и успешный кейс
 func TestRemoveByID_Parse_DeleteErr_OK(t *testing.T) {
 	hBad := &handlers.SubHandler{Subs: &mockSubRepo{}}
 
@@ -316,6 +325,7 @@ func TestRemoveByID_Parse_DeleteErr_OK(t *testing.T) {
 	}
 }
 
+// TestListSubs_DecodeErrors - ошибки декодирования и полей фильтров/курсора
 func TestListSubs_DecodeErrors(t *testing.T) {
 	h := &handlers.SubHandler{Subs: &mockSubRepo{}}
 
@@ -385,6 +395,7 @@ func TestListSubs_DecodeErrors(t *testing.T) {
 	h.ListSubs(rr, req)
 }
 
+// TestListSubs_ListErr_NoCursor_WithCursor - ошибка репозитория и успешные ответы без/с курсором
 func TestListSubs_ListErr_NoCursor_WithCursor(t *testing.T) {
 	hErr := &handlers.SubHandler{Subs: &mockSubRepo{listFn: func(string, uuid.UUID, time.Time, time.Time, string, repoPkg.PageCursor) ([]repoPkg.SubInfo, *repoPkg.PageCursor, error) {
 		return nil, nil, errors.New("x")
@@ -432,6 +443,7 @@ func TestListSubs_ListErr_NoCursor_WithCursor(t *testing.T) {
 	}
 }
 
+// TestSumSubs_GetErr_OK - ошибка при суммировании и успешный кейс
 func TestSumSubs_GetErr_OK(t *testing.T) {
 	hErr := &handlers.SubHandler{Subs: &mockSubRepo{sumFn: func(string, uuid.UUID, time.Time, time.Time) (int64, error) { return 0, errors.New("x") }}}
 
@@ -447,7 +459,7 @@ func TestSumSubs_GetErr_OK(t *testing.T) {
 	}
 
 	hOK := &handlers.SubHandler{Subs: &mockSubRepo{sumFn: func(string, uuid.UUID, time.Time, time.Time) (int64, error) { return 123, nil }}}
-	rr, req = newReq(http.MethodGet, "/totalSubs", `{"service_name":"","user_id":"","start_date":"01-2025","end_date":"02-2025"}`)
+	rr, req = newReq(http.MethodGet, "/totalSubs", `{"service_name":"","user_id":"","start_date":"01-2025","end_date":""}`)
 
 	hOK.SumSubs(rr, req)
 	if rr.Code != http.StatusOK {
@@ -459,6 +471,7 @@ func TestSumSubs_GetErr_OK(t *testing.T) {
 	}
 }
 
+// TestSumSubs_DecodeErrors - неверное тело запроса
 func TestSumSubs_DecodeErrors(t *testing.T) {
 	h := &handlers.SubHandler{Subs: &mockSubRepo{}}
 

@@ -5,6 +5,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// Log - глобальный логгер приложения, настроенный на JSON-формат и запись в файл
 var Log *zap.Logger
 
 func init() {

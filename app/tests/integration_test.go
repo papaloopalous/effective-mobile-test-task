@@ -29,6 +29,7 @@ func baseURL() string {
 	return "http://localhost:8080"
 }
 
+// doJSON - выполняет HTTP-запрос с JSON и декодирует ответ
 func doJSON(method, path string, body any) (*integAPIResp, int, error) {
 	var buf bytes.Buffer
 	if body != nil {
@@ -53,6 +54,7 @@ func doJSON(method, path string, body any) (*integAPIResp, int, error) {
 	return &ar, resp.StatusCode, nil
 }
 
+// doJSONElapsed - то же, что doJSON, но возвращает длительность запроса
 func doJSONElapsed(method, path string, body any) (time.Duration, int, error) {
 	var buf bytes.Buffer
 	if body != nil {
@@ -79,6 +81,7 @@ func doJSONElapsed(method, path string, body any) (time.Duration, int, error) {
 	return elapsed, resp.StatusCode, nil
 }
 
+// waitServer - ожидает готовность сервера отвечать
 func waitServer(t *testing.T) {
 	deadline := time.Now().Add(60 * time.Second)
 	for time.Now().Before(deadline) {
@@ -91,6 +94,7 @@ func waitServer(t *testing.T) {
 	t.Fatalf("server not ready at %s", baseURL())
 }
 
+// waitLogFile - ищет лог-файл среди стандартных путей/переменных окружения
 func waitLogFile(t *testing.T) string {
 	candidates := []string{}
 
@@ -118,6 +122,7 @@ func waitLogFile(t *testing.T) string {
 	return ""
 }
 
+// logContainsSlow - проверяет наличие SLOW-записей в логе
 func logContainsSlow(path string) bool {
 	f, err := os.Open(path)
 	if err != nil {
@@ -129,6 +134,7 @@ func logContainsSlow(path string) bool {
 	return strings.Contains(s, "(SLOW)")
 }
 
+// TestIntegration_Add_Errors - негативные сценарии для добавления подписок
 func TestIntegration_Add_Errors(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" && os.Getenv("INTEGRATION") != "1" {
 		t.Skip("")
@@ -167,6 +173,7 @@ func TestIntegration_Add_Errors(t *testing.T) {
 	}
 }
 
+// TestIntegration_Get_Errors - негативные сценарии для получения подписки
 func TestIntegration_Get_Errors(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" && os.Getenv("INTEGRATION") != "1" {
 		t.Skip("")
@@ -185,6 +192,7 @@ func TestIntegration_Get_Errors(t *testing.T) {
 	}
 }
 
+// TestIntegration_Update_Errors - негативные сценарии обновления
 func TestIntegration_Update_Errors(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" && os.Getenv("INTEGRATION") != "1" {
 		t.Skip("")
@@ -228,6 +236,7 @@ func TestIntegration_Update_Errors(t *testing.T) {
 	}
 }
 
+// TestIntegration_Delete_Errors - негативные сценарии удаления
 func TestIntegration_Delete_Errors(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" && os.Getenv("INTEGRATION") != "1" {
 		t.Skip("")
@@ -246,6 +255,7 @@ func TestIntegration_Delete_Errors(t *testing.T) {
 	}
 }
 
+// TestIntegration_List_Errors - негативные сценарии листинга
 func TestIntegration_List_Errors(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" && os.Getenv("INTEGRATION") != "1" {
 		t.Skip("")
@@ -284,6 +294,7 @@ func TestIntegration_List_Errors(t *testing.T) {
 	}
 }
 
+// TestIntegration_List_Pagination - сценарий с постраничной навигацией
 func TestIntegration_List_Pagination(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" && os.Getenv("INTEGRATION") != "1" {
 		t.Skip("")
@@ -332,6 +343,7 @@ func TestIntegration_List_Pagination(t *testing.T) {
 	}
 }
 
+// TestIntegration_Sum_Errors - негативный сценарий суммирования
 func TestIntegration_Sum_Errors(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" && os.Getenv("INTEGRATION") != "1" {
 		t.Skip("")
@@ -345,6 +357,7 @@ func TestIntegration_Sum_Errors(t *testing.T) {
 	}
 }
 
+// TestIntegration_FullFlow - полный сценарий: add-get-update-list-sum-delete
 func TestIntegration_FullFlow(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" && os.Getenv("INTEGRATION") != "1" {
 		t.Skip("")
@@ -392,6 +405,7 @@ func TestIntegration_FullFlow(t *testing.T) {
 	}
 }
 
+// TestIntegration_Logs_SlowQueries - проверка отсутствия SLOW-записей
 func TestIntegration_Logs_SlowQueries(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" && os.Getenv("INTEGRATION") != "1" {
 		t.Skip("")

@@ -9,13 +9,13 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
-
 	dbpkg "task_test/internal/db"
 	repoPkg "task_test/internal/repo"
 	"task_test/util"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type fakeRow struct {
@@ -108,12 +108,14 @@ type fakeDB struct {
 	rows      pgx.Rows
 }
 
+// QueryRow - фиксирует последний запрос/аргументы и возвращает подготовленную строку
 func (f *fakeDB) QueryRow(ctx context.Context, query string, args ...any) pgx.Row {
 	f.lastQuery = query
 	f.lastArgs = args
 	return f.row
 }
 
+// Query - фиксирует последний запрос/аргументы и возвращает подготовленный набор строк/ошибку
 func (f *fakeDB) Query(ctx context.Context, query string, args ...any) (pgx.Rows, error) {
 	f.lastQuery = query
 	f.lastArgs = args
@@ -127,6 +129,7 @@ func (f *fakeDB) Ping(ctx context.Context) error {
 	return nil
 }
 
+// Exec - фиксирует последний запрос/аргументы и возвращает ошибку (если задана)
 func (f *fakeDB) Exec(ctx context.Context, query string, args ...any) error {
 	f.lastQuery = query
 	f.lastArgs = args
@@ -142,6 +145,7 @@ func setSubDataDB(sd *repoPkg.SubData, db dbpkg.DB) {
 	reflect.NewAt(rv.Type(), ptr).Elem().Set(reflect.ValueOf(db))
 }
 
+// TestRepo_Create_OK_Error - успешное создание и ошибка Exec
 func TestRepo_Create_OK_Error(t *testing.T) {
 	sd := &repoPkg.SubData{}
 	f := &fakeDB{}
@@ -174,6 +178,7 @@ func TestRepo_Create_OK_Error(t *testing.T) {
 	}
 }
 
+// TestRepo_Read_OK_Error - успешное чтение и ошибка Scan
 func TestRepo_Read_OK_Error(t *testing.T) {
 	sd := &repoPkg.SubData{}
 
@@ -201,6 +206,7 @@ func TestRepo_Read_OK_Error(t *testing.T) {
 	}
 }
 
+// TestRepo_Update_Delete - успешные и ошибочные случаи обновления/удаления
 func TestRepo_Update_Delete(t *testing.T) {
 	sd := &repoPkg.SubData{}
 	f := &fakeDB{}
@@ -228,6 +234,7 @@ func TestRepo_Update_Delete(t *testing.T) {
 	}
 }
 
+// TestRepo_List_QueryErr_ScanErr_OK_NoNext_WithNext - разные сценарии листинга и курсора
 func TestRepo_List_QueryErr_ScanErr_OK_NoNext_WithNext(t *testing.T) {
 	sd := &repoPkg.SubData{}
 	f := &fakeDB{}
@@ -276,6 +283,7 @@ func TestRepo_List_QueryErr_ScanErr_OK_NoNext_WithNext(t *testing.T) {
 	}
 }
 
+// TestRepo_List_WithFiltersAndCursor - проверка фильтров и курсора в SQL
 func TestRepo_List_WithFiltersAndCursor(t *testing.T) {
 	sd := &repoPkg.SubData{}
 	f := &fakeDB{}
@@ -290,6 +298,7 @@ func TestRepo_List_WithFiltersAndCursor(t *testing.T) {
 	}
 }
 
+// TestRepo_GetSum_OK_Err - успешная агрегация и ошибка Scan
 func TestRepo_GetSum_OK_Err(t *testing.T) {
 	sd := &repoPkg.SubData{}
 	f := &fakeDB{row: &fakeRow{vals: []any{int64(123)}}}
@@ -308,6 +317,7 @@ func TestRepo_GetSum_OK_Err(t *testing.T) {
 	}
 }
 
+// TestRepo_GetSum_WithFilters - проверка применения фильтров и аргументов
 func TestRepo_GetSum_WithFilters(t *testing.T) {
 	sd := &repoPkg.SubData{}
 	f := &fakeDB{row: &fakeRow{vals: []any{int64(77)}}}
@@ -331,6 +341,7 @@ func TestRepo_GetSum_WithFilters(t *testing.T) {
 	}
 }
 
+// TestRepo_Close - закрытие репозитория
 func TestRepo_Close(t *testing.T) {
 	sd := &repoPkg.SubData{}
 	setSubDataDB(sd, &fakeDB{})

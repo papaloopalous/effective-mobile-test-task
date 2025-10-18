@@ -1,8 +1,11 @@
 package tests
 
+// Моки репозитория для изоляции хендлеров и тестов репозитория.
+
 import (
-	repoPkg "task_test/internal/repo"
 	"time"
+
+	repoPkg "task_test/internal/repo"
 
 	"github.com/google/uuid"
 )
@@ -16,6 +19,7 @@ type mockSubRepo struct {
 	sumFn    func(serviceName string, userID uuid.UUID, startDate time.Time, endDate time.Time) (int64, error)
 }
 
+// Create - заглушка создания подписки
 func (m *mockSubRepo) Create(serviceName string, monthlyFee int, userID uuid.UUID, startDate time.Time, nMonths int) (uuid.UUID, error) {
 	if m.createFn != nil {
 		return m.createFn(serviceName, monthlyFee, userID, startDate, nMonths)
@@ -24,6 +28,7 @@ func (m *mockSubRepo) Create(serviceName string, monthlyFee int, userID uuid.UUI
 	return uuid.Nil, nil
 }
 
+// Read - заглушка чтения подписки
 func (m *mockSubRepo) Read(subID uuid.UUID, format string) (repoPkg.SubInfo, error) {
 	if m.readFn != nil {
 		return m.readFn(subID, format)
@@ -32,6 +37,7 @@ func (m *mockSubRepo) Read(subID uuid.UUID, format string) (repoPkg.SubInfo, err
 	return repoPkg.SubInfo{}, nil
 }
 
+// Update - заглушка обновления подписки
 func (m *mockSubRepo) Update(subID uuid.UUID, monthlyFee int, endDate time.Time) error {
 	if m.updateFn != nil {
 		return m.updateFn(subID, monthlyFee, endDate)
@@ -40,6 +46,7 @@ func (m *mockSubRepo) Update(subID uuid.UUID, monthlyFee int, endDate time.Time)
 	return nil
 }
 
+// Delete - заглушка удаления подписки
 func (m *mockSubRepo) Delete(subID uuid.UUID) error {
 	if m.deleteFn != nil {
 		return m.deleteFn(subID)
@@ -48,6 +55,7 @@ func (m *mockSubRepo) Delete(subID uuid.UUID) error {
 	return nil
 }
 
+// List - заглушка листинга подписок
 func (m *mockSubRepo) List(serviceName string, userID uuid.UUID, startDate time.Time, endDate time.Time, format string, cur repoPkg.PageCursor) ([]repoPkg.SubInfo, *repoPkg.PageCursor, error) {
 	if m.listFn != nil {
 		return m.listFn(serviceName, userID, startDate, endDate, format, cur)
@@ -56,6 +64,7 @@ func (m *mockSubRepo) List(serviceName string, userID uuid.UUID, startDate time.
 	return nil, nil, nil
 }
 
+// GetSum - заглушка суммирования подписок
 func (m *mockSubRepo) GetSum(serviceName string, userID uuid.UUID, startDate time.Time, endDate time.Time) (int64, error) {
 	if m.sumFn != nil {
 		return m.sumFn(serviceName, userID, startDate, endDate)
@@ -64,4 +73,5 @@ func (m *mockSubRepo) GetSum(serviceName string, userID uuid.UUID, startDate tim
 	return 0, nil
 }
 
+// Close - заглушка закрытия
 func (m *mockSubRepo) Close() {}

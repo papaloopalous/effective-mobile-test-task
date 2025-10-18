@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
+
 	"task_test/api/response"
 	"task_test/internal/repo"
 	"task_test/util"
-
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -17,17 +17,28 @@ type SubHandler struct {
 	Subs repo.SubRepo
 }
 
-type addReq struct {
-	ServiceName string    `json:"service_name"`
-	UserID      uuid.UUID `json:"user_id"`
-	MonthlyFee  int       `json:"monthly_fee"`
-	StartDate   string    `json:"start_date"`
-	NMonths     int       `json:"num_months"`
+// AddReq - тело запроса для создания подписки
+type AddReq struct {
+	ServiceName string    `json:"service_name" example:"Netflix"`                         // название сервиса
+	UserID      uuid.UUID `json:"user_id" example:"550e8400-e29b-41d4-a716-446655440000"` // ID пользователя (UUID)
+	MonthlyFee  int       `json:"monthly_fee" example:"499"`                              // ежемесячная стоимость
+	StartDate   string    `json:"start_date" example:"01-2025"`                           // дата начала (MM-YYYY)
+	NMonths     int       `json:"num_months" example:"12"`                                // длительность подписки в месяцах
 }
 
+// AddSub - создаёт новую подписку
+// @Summary Создать подписку
+// @Description Создаёт новую подписку для указанного пользователя и сервиса.
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Param request body handlers.AddReq true "Тело запроса для создания подписки"
+// @Success 201 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /addSub [post]
 func (sh *SubHandler) AddSub(w http.ResponseWriter, r *http.Request) {
-
-	var req addReq
+	var req AddReq
 
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
@@ -67,6 +78,16 @@ func (sh *SubHandler) AddSub(w http.ResponseWriter, r *http.Request) {
 	response.WriteAPIResponse(w, http.StatusCreated, util.SuccessLogAddSub, id)
 }
 
+// GetByID - возвращает подписку по её ID
+// @Summary Получить подписку по ID
+// @Description Возвращает информацию о подписке по UUID.
+// @Tags Subscriptions
+// @Produce json
+// @Param sub_id query string true "ID подписки (UUID)"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /getSub [get]
 func (sh *SubHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("sub_id")
 	subID, err := uuid.Parse(id)
@@ -84,14 +105,27 @@ func (sh *SubHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	response.WriteAPIResponse(w, http.StatusOK, util.SussessLogGetSub, sub)
 }
 
-type updateReq struct {
-	SubID      uuid.UUID `json:"sub_id"`
-	MonthlyFee int       `json:"monthly_fee"`
-	EndDate    string    `json:"end_date"`
+// UpdateReq - тело запроса для обновления подписки
+type UpdateReq struct {
+	SubID      uuid.UUID `json:"sub_id" example:"2f1e4e2a-1a7d-4e6b-a222-3cb3f92f0a11"` // ID подписки (UUID)
+	MonthlyFee int       `json:"monthly_fee" example:"599"`                             // новая ежемесячная стоимость
+	EndDate    string    `json:"end_date" example:"01-2025"`                            // новая дата окончания (MM-YYYY)
 }
 
+// UpdateByID - обновляет подписку по её ID
+// @Summary Обновить подписку
+// @Description Обновляет ежемесячную стоимость и дату окончания подписки.
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Param request body handlers.UpdateReq true "Тело запроса для обновления подписки"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Failure 404 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /updateSub [put]
 func (sh *SubHandler) UpdateByID(w http.ResponseWriter, r *http.Request) {
-	var req updateReq
+	var req UpdateReq
 
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
@@ -140,6 +174,16 @@ func (sh *SubHandler) UpdateByID(w http.ResponseWriter, r *http.Request) {
 	response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogUpdateSub, nil)
 }
 
+// RemoveByID - удаляет подписку по её ID
+// @Summary Удалить подписку
+// @Description Удаляет подписку по UUID.
+// @Tags Subscriptions
+// @Produce json
+// @Param sub_id query string true "ID подписки (UUID)"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /deleteSub [delete]
 func (sh *SubHandler) RemoveByID(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("sub_id")
 	subID, err := uuid.Parse(id)
@@ -157,29 +201,33 @@ func (sh *SubHandler) RemoveByID(w http.ResponseWriter, r *http.Request) {
 	response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogDeleteSub, nil)
 }
 
-type cursorIn struct {
-	LastStart string `json:"last_start,omitempty"`
-	LastID    string `json:"last_id,omitempty"`
-	Limit     int    `json:"limit,omitempty"`
+// CursorIn - входной курсор пагинации
+type CursorIn struct {
+	LastStart string `json:"last_start,omitempty" example:"01-2025"`                           // последняя дата (MM-YYYY)
+	LastID    string `json:"last_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"` // последний ID (UUID)
+	Limit     int    `json:"limit,omitempty" example:"50"`                                     // размер страницы (по умолчанию 50)
 }
 
-type listReq struct {
-	ServiceName string   `json:"service_name"`
-	UserID      string   `json:"user_id"`
-	StartDate   string   `json:"start_date"`
-	EndDate     string   `json:"end_date"`
-	Cursor      cursorIn `json:"cursor,omitempty"`
+// ListReq - фильтр для выборки/суммирования подписок
+type ListReq struct {
+	ServiceName string   `json:"service_name" example:"Netflix"` // фильтр по названию сервиса (необязательно)
+	UserID      string   `json:"user_id" example:""`             // фильтр по пользователю (UUID, необязательно)
+	StartDate   string   `json:"start_date" example:"01-2025"`   // начальная дата периода (необязательно)
+	EndDate     string   `json:"end_date" example:""`            // конечная дата периода (необязательно)
+	Cursor      CursorIn `json:"cursor"`                         // курсор пагинации (необязательно)
 }
 
-type cursorOut struct {
+// CursorOut - курсор для следующей страницы в ответе
+type CursorOut struct {
 	LastStart string `json:"last_start"`
 	LastID    string `json:"last_id"`
 	Limit     int    `json:"limit"`
 }
 
-type listResp struct {
+// ListResp - список подписок и курсор следующей страницы
+type ListResp struct {
 	Subscriptions []repo.SubInfo `json:"subscriptions"`
-	Cursor        *cursorOut     `json:"cursor,omitempty"`
+	Cursor        *CursorOut     `json:"cursor,omitempty"`
 }
 
 type listReqValidated struct {
@@ -193,7 +241,7 @@ type listReqValidated struct {
 }
 
 func decodeAndValidateListReq(w http.ResponseWriter, r *http.Request) (listReqValidated, error) {
-	var req listReq
+	var req ListReq
 
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
@@ -218,14 +266,22 @@ func decodeAndValidateListReq(w http.ResponseWriter, r *http.Request) (listReqVa
 	}
 
 	var s, e time.Time
-	s, err = time.Parse(util.DateFormat, req.StartDate)
-	if err != nil {
-		return listReqValidated{}, err
+	if req.StartDate != "" {
+		s, err = time.Parse(util.DateFormat, req.StartDate)
+		if err != nil {
+			response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogParseStartDate, err.Error())
+			return listReqValidated{}, err
+		}
 	}
 
-	e, err = time.Parse(util.DateFormat, req.EndDate)
-	if err != nil {
-		return listReqValidated{}, err
+	if req.EndDate == "" {
+		e = time.Date(9999, 12, 31, 0, 0, 0, 0, time.UTC)
+	} else {
+		e, err = time.Parse(util.DateFormat, req.EndDate)
+		if err != nil {
+			response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogParseEndDate, err.Error())
+			return listReqValidated{}, err
+		}
 	}
 
 	var lastID uuid.UUID
@@ -264,6 +320,18 @@ func decodeAndValidateListReq(w http.ResponseWriter, r *http.Request) (listReqVa
 	return reqV, nil
 }
 
+// ListSubs - возвращает список подписок с пагинацией
+// Важно: эндпоинт принимает JSON в теле (для примера используется метод POST).
+// @Summary Список подписок
+// @Description Возвращает список подписок, отфильтрованных по сервису, пользователю и диапазону дат. Поддерживает курсорную пагинацию. В случае отсутствия фильтров возвращает все подписки.
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Param request body handlers.ListReq true "Фильтры и курсор пагинации"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /listSubs [post]
 func (sh *SubHandler) ListSubs(w http.ResponseWriter, r *http.Request) {
 	req, err := decodeAndValidateListReq(w, r)
 	if err != nil {
@@ -282,21 +350,33 @@ func (sh *SubHandler) ListSubs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var next *cursorOut
+	var next *CursorOut
 	if nextCur != nil && nextCur.LastID != uuid.Nil && !nextCur.LastStart.IsZero() {
-		next = &cursorOut{
+		next = &CursorOut{
 			LastStart: nextCur.LastStart.Format(util.DateFormat),
 			LastID:    nextCur.LastID.String(),
 			Limit:     nextCur.Limit,
 		}
 	}
 
-	response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogListSubs, listResp{
+	response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogListSubs, ListResp{
 		Subscriptions: subs,
 		Cursor:        next,
 	})
 }
 
+// SumSubs - возвращает общую сумму по подходящим подпискам
+// Важно: эндпоинт принимает JSON в теле (для примера используется метод POST).
+// @Summary Общая сумма по подпискам
+// @Description Рассчитывает суммарную стоимость подписок по заданным фильтрам за пересекающийся период. В случае отсутствия фильтров рассчитывает сумму по всем подпискам.
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Param request body handlers.ListReq true "Фильтры для расчёта суммы"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /totalSubs [post]
 func (sh *SubHandler) SumSubs(w http.ResponseWriter, r *http.Request) {
 	req, err := decodeAndValidateListReq(w, r)
 	if err != nil {

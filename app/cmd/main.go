@@ -1,3 +1,13 @@
+// Сервис подписок (Subscriptions Service)
+//
+// @title        API Подписок
+// @version      1.0
+// @description  API для управления пользовательскими подписками: создание, получение, обновление, удаление, список с пагинацией и подсчёт суммы по периодам.
+// @BasePath     /
+// @schemes      http
+//
+// @tag.name Subscriptions
+// @tag.description Операции с подписками пользователей: создание, получение, обновление, удаление, список с пагинацией и подсчёт суммарной стоимости.
 package main
 
 import (
@@ -6,11 +16,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
+
 	"task_test/api/router"
 	"task_test/internal/logger"
 	readConfig "task_test/internal/read_config"
-
-	"time"
 
 	"go.uber.org/zap"
 )

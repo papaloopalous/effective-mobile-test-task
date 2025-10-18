@@ -1,0 +1,283 @@
+basePath: /
+definitions:
+  handlers.AddReq:
+    properties:
+      monthly_fee:
+        description: ежемесячная стоимость
+        example: 499
+        type: integer
+      num_months:
+        description: длительность подписки в месяцах
+        example: 12
+        type: integer
+      service_name:
+        description: название сервиса
+        example: Netflix
+        type: string
+      start_date:
+        description: дата начала (MM_YYYY)
+        example: 01-2025
+        type: string
+      user_id:
+        description: ID пользователя (UUID)
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    type: object
+  handlers.CursorIn:
+    properties:
+      last_id:
+        description: последний ID (UUID)
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      last_start:
+        description: последняя дата (MM-YYYY)
+        example: 01-2025
+        type: string
+      limit:
+        description: размер страницы (по умолчанию 50)
+        example: 50
+        type: integer
+    type: object
+  handlers.ListReq:
+    properties:
+      cursor:
+        allOf:
+        - $ref: '#/definitions/handlers.CursorIn'
+        description: курсор пагинации (необязательно)
+      end_date:
+        description: конечная дата периода (необязательно)
+        example: ""
+        type: string
+      service_name:
+        description: фильтр по названию сервиса (необязательно)
+        example: Netflix
+        type: string
+      start_date:
+        description: начальная дата периода (необязательно)
+        example: 01-2025
+        type: string
+      user_id:
+        description: фильтр по пользователю (UUID, необязательно)
+        example: ""
+        type: string
+    type: object
+  handlers.UpdateReq:
+    properties:
+      end_date:
+        description: новая дата окончания (MM-YYYY)
+        example: 01-2025
+        type: string
+      monthly_fee:
+        description: новая ежемесячная стоимость
+        example: 599
+        type: integer
+      sub_id:
+        description: ID подписки (UUID)
+        example: 2f1e4e2a-1a7d-4e6b-a222-3cb3f92f0a11
+        type: string
+    type: object
+  response.APIResponse:
+    properties:
+      code:
+        description: HTTP код ответа
+        type: integer
+      data:
+        description: Данные ответа (опционально)
+      message:
+        description: Сообщение для пользователя
+        type: string
+    type: object
+info:
+  contact: {}
+  description: 'API для управления пользовательскими подписками: создание, получение,
+    обновление, удаление, список с пагинацией и подсчёт суммы по периодам.'
+  title: API Подписок
+  version: "1.0"
+paths:
+  /addSub:
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новую подписку для указанного пользователя и сервиса.
+      parameters:
+      - description: Тело запроса для создания подписки
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.AddReq'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+      summary: Создать подписку
+      tags:
+      - Subscriptions
+  /deleteSub:
+    delete:
+      description: Удаляет подписку по UUID.
+      parameters:
+      - description: ID подписки (UUID)
+        in: query
+        name: sub_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+      summary: Удалить подписку
+      tags:
+      - Subscriptions
+  /getSub:
+    get:
+      description: Возвращает информацию о подписке по UUID.
+      parameters:
+      - description: ID подписки (UUID)
+        in: query
+        name: sub_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+      summary: Получить подписку по ID
+      tags:
+      - Subscriptions
+  /listSubs:
+    post:
+      consumes:
+      - application/json
+      description: Возвращает список подписок, отфильтрованных по сервису, пользователю
+        и диапазону дат. Поддерживает курсорную пагинацию.
+      parameters:
+      - description: Фильтры и курсор пагинации
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ListReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+      summary: Список подписок
+      tags:
+      - Subscriptions
+  /totalSubs:
+    post:
+      consumes:
+      - application/json
+      description: Рассчитывает суммарную стоимость подписок по заданным фильтрам
+        за пересекающийся период.
+      parameters:
+      - description: Фильтры для расчёта суммы
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ListReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+      summary: Общая сумма по подпискам
+      tags:
+      - Subscriptions
+  /updateSub:
+    put:
+      consumes:
+      - application/json
+      description: Обновляет ежемесячную стоимость и дату окончания подписки.
+      parameters:
+      - description: Тело запроса для обновления подписки
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.APIResponse'
+      summary: Обновить подписку
+      tags:
+      - Subscriptions
+schemes:
+- http
+swagger: "2.0"
+tags:
+- description: 'Операции с подписками пользователей: создание, получение, обновление,
+    удаление, список с пагинацией и подсчёт суммарной стоимости.'
+  name: Subscriptions

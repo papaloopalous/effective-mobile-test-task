@@ -1,15 +1,13 @@
 package repo
 
-// TODO: проверить порядки импорта везде
-
 import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
+
 	"task_test/internal/db"
 	"task_test/internal/logger"
-
-	"time"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -29,10 +27,12 @@ type SubData struct {
 
 var _ SubRepo = &SubData{}
 
+// Close - закрывает соединение с БД/ресурсы пула
 func (sd *SubData) Close() {
 	sd.sqlDB.Close()
 }
 
+// NewSubRepo - создаёт новый репозиторий подписок, устанавливая соединение с БД
 func NewSubRepo(dsn string, slowThreshold time.Duration) *SubData {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -114,6 +114,7 @@ type PageCursor struct {
 	Limit     int
 }
 
+// List - возвращает отсортированный список подписок с постраничной навигацией (курсор)
 func (sd *SubData) List(serviceName string, userID uuid.UUID, startDate time.Time, endDate time.Time, format string, cur PageCursor) ([]SubInfo, *PageCursor, error) {
 
 	var (
@@ -227,6 +228,7 @@ func (sd *SubData) List(serviceName string, userID uuid.UUID, startDate time.Tim
 	return res, next, nil
 }
 
+// GetSum - возвращает суммарную стоимость подписок за пересекающийся период
 func (sd *SubData) GetSum(serviceName string, userID uuid.UUID, startDate time.Time, endDate time.Time) (int64, error) {
 
 	var (

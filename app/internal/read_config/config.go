@@ -2,14 +2,15 @@ package readconfig
 
 import (
 	"net/url"
-	"task_test/internal/logger"
-
 	"time"
+
+	"task_test/internal/logger"
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
+// Инициализация конфигурации из файла ./configs/config.yaml
 func init() {
 	viper.SetConfigFile("./configs/config.yaml")
 
@@ -19,12 +20,14 @@ func init() {
 	}
 }
 
+// GetSrvInfo - получить порт сервера и таймаут чтения заголовка
 func GetSrvInfo() (string, time.Duration) {
 	port := viper.GetString("server_port")
 	timeout := viper.GetDuration("read_header_timeout")
 	return port, timeout
 }
 
+// GetDBInfo - сформировать DSN для PostgreSQL и вернуть порог медленного запроса
 func GetDBInfo() (string, time.Duration) {
 	dbUser := viper.GetString("db.user")
 	dbPass := viper.GetString("db.password")

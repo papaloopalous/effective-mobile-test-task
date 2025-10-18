@@ -77,11 +77,11 @@ import (
         "encoding/json"
         "errors"
         "net/http"
+        "time"
+
         "task_test/api/response"
         "task_test/internal/repo"
         "task_test/util"
-
-        "time"
 
         "github.com/google/uuid"
 )
@@ -90,17 +90,28 @@ type SubHandler struct {
         Subs repo.SubRepo
 }
 
-type addReq struct {
-        ServiceName string    `json:"service_name"`
-        UserID      uuid.UUID `json:"user_id"`
-        MonthlyFee  int       `json:"monthly_fee"`
-        StartDate   string    `json:"start_date"`
-        NMonths     int       `json:"num_months"`
+// AddReq - тело запроса для создания подписки
+type AddReq struct {
+        ServiceName string    `json:"service_name" example:"Netflix"`                         // название сервиса
+        UserID      uuid.UUID `json:"user_id" example:"550e8400-e29b-41d4-a716-446655440000"` // ID пользователя (UUID)
+        MonthlyFee  int       `json:"monthly_fee" example:"499"`                              // ежемесячная стоимость
+        StartDate   string    `json:"start_date" example:"01-2025"`                           // дата начала (MM-YYYY)
+        NMonths     int       `json:"num_months" example:"12"`                                // длительность подписки в месяцах
 }
 
+// AddSub - создаёт новую подписку
+// @Summary Создать подписку
+// @Description Создаёт новую подписку для указанного пользователя и сервиса.
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Param request body handlers.AddReq true "Тело запроса для создания подписки"
+// @Success 201 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /addSub [post]
 func (sh *SubHandler) AddSub(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
-
-        var req addReq
+        var req AddReq
 
         dec := json.NewDecoder(r.Body)
         dec.DisallowUnknownFields()
@@ -140,6 +151,16 @@ func (sh *SubHandler) AddSub(w http.ResponseWriter, r *http.Request) <span class
         <span class="cov8" title="1">response.WriteAPIResponse(w, http.StatusCreated, util.SuccessLogAddSub, id)</span>
 }
 
+// GetByID - возвращает подписку по её ID
+// @Summary Получить подписку по ID
+// @Description Возвращает информацию о подписке по UUID.
+// @Tags Subscriptions
+// @Produce json
+// @Param sub_id query string true "ID подписки (UUID)"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /getSub [get]
 func (sh *SubHandler) GetByID(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
         id := r.URL.Query().Get("sub_id")
         subID, err := uuid.Parse(id)
@@ -157,14 +178,27 @@ func (sh *SubHandler) GetByID(w http.ResponseWriter, r *http.Request) <span clas
         <span class="cov8" title="1">response.WriteAPIResponse(w, http.StatusOK, util.SussessLogGetSub, sub)</span>
 }
 
-type updateReq struct {
-        SubID      uuid.UUID `json:"sub_id"`
-        MonthlyFee int       `json:"monthly_fee"`
-        EndDate    string    `json:"end_date"`
+// UpdateReq - тело запроса для обновления подписки
+type UpdateReq struct {
+        SubID      uuid.UUID `json:"sub_id" example:"2f1e4e2a-1a7d-4e6b-a222-3cb3f92f0a11"` // ID подписки (UUID)
+        MonthlyFee int       `json:"monthly_fee" example:"599"`                             // новая ежемесячная стоимость
+        EndDate    string    `json:"end_date" example:"01-2025"`                            // новая дата окончания (MM-YYYY)
 }
 
+// UpdateByID - обновляет подписку по её ID
+// @Summary Обновить подписку
+// @Description Обновляет ежемесячную стоимость и дату окончания подписки.
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Param request body handlers.UpdateReq true "Тело запроса для обновления подписки"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Failure 404 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /updateSub [put]
 func (sh *SubHandler) UpdateByID(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
-        var req updateReq
+        var req UpdateReq
 
         dec := json.NewDecoder(r.Body)
         dec.DisallowUnknownFields()
@@ -213,6 +247,16 @@ func (sh *SubHandler) UpdateByID(w http.ResponseWriter, r *http.Request) <span c
         <span class="cov8" title="1">response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogUpdateSub, nil)</span>
 }
 
+// RemoveByID - удаляет подписку по её ID
+// @Summary Удалить подписку
+// @Description Удаляет подписку по UUID.
+// @Tags Subscriptions
+// @Produce json
+// @Param sub_id query string true "ID подписки (UUID)"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /deleteSub [delete]
 func (sh *SubHandler) RemoveByID(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
         id := r.URL.Query().Get("sub_id")
         subID, err := uuid.Parse(id)
@@ -230,29 +274,33 @@ func (sh *SubHandler) RemoveByID(w http.ResponseWriter, r *http.Request) <span c
         <span class="cov8" title="1">response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogDeleteSub, nil)</span>
 }
 
-type cursorIn struct {
-        LastStart string `json:"last_start,omitempty"`
-        LastID    string `json:"last_id,omitempty"`
-        Limit     int    `json:"limit,omitempty"`
+// CursorIn - входной курсор пагинации
+type CursorIn struct {
+        LastStart string `json:"last_start,omitempty" example:"01-2025"`                           // последняя дата (MM-YYYY)
+        LastID    string `json:"last_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"` // последний ID (UUID)
+        Limit     int    `json:"limit,omitempty" example:"50"`                                     // размер страницы (по умолчанию 50)
 }
 
-type listReq struct {
-        ServiceName string   `json:"service_name"`
-        UserID      string   `json:"user_id"`
-        StartDate   string   `json:"start_date"`
-        EndDate     string   `json:"end_date"`
-        Cursor      cursorIn `json:"cursor,omitempty"`
+// ListReq - фильтр для выборки/суммирования подписок
+type ListReq struct {
+        ServiceName string   `json:"service_name" example:"Netflix"` // фильтр по названию сервиса (необязательно)
+        UserID      string   `json:"user_id" example:""`             // фильтр по пользователю (UUID, необязательно)
+        StartDate   string   `json:"start_date" example:"01-2025"`   // начальная дата периода (необязательно)
+        EndDate     string   `json:"end_date" example:""`            // конечная дата периода (необязательно)
+        Cursor      CursorIn `json:"cursor"`                         // курсор пагинации (необязательно)
 }
 
-type cursorOut struct {
+// CursorOut - курсор для следующей страницы в ответе
+type CursorOut struct {
         LastStart string `json:"last_start"`
         LastID    string `json:"last_id"`
         Limit     int    `json:"limit"`
 }
 
-type listResp struct {
+// ListResp - список подписок и курсор следующей страницы
+type ListResp struct {
         Subscriptions []repo.SubInfo `json:"subscriptions"`
-        Cursor        *cursorOut     `json:"cursor,omitempty"`
+        Cursor        *CursorOut     `json:"cursor,omitempty"`
 }
 
 type listReqValidated struct {
@@ -266,7 +314,7 @@ type listReqValidated struct {
 }
 
 func decodeAndValidateListReq(w http.ResponseWriter, r *http.Request) (listReqValidated, error) <span class="cov8" title="1">{
-        var req listReq
+        var req ListReq
 
         dec := json.NewDecoder(r.Body)
         dec.DisallowUnknownFields()
@@ -291,15 +339,23 @@ func decodeAndValidateListReq(w http.ResponseWriter, r *http.Request) (listReqVa
         }</span>
 
         <span class="cov8" title="1">var s, e time.Time
-        s, err = time.Parse(util.DateFormat, req.StartDate)
-        if err != nil </span><span class="cov8" title="1">{
-                return listReqValidated{}, err
-        }</span>
+        if req.StartDate != "" </span><span class="cov8" title="1">{
+                s, err = time.Parse(util.DateFormat, req.StartDate)
+                if err != nil </span><span class="cov8" title="1">{
+                        response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogParseStartDate, err.Error())
+                        return listReqValidated{}, err
+                }</span>
+        }
 
-        <span class="cov8" title="1">e, err = time.Parse(util.DateFormat, req.EndDate)
-        if err != nil </span><span class="cov8" title="1">{
-                return listReqValidated{}, err
-        }</span>
+        <span class="cov8" title="1">if req.EndDate == "" </span><span class="cov8" title="1">{
+                e = time.Date(9999, 12, 31, 0, 0, 0, 0, time.UTC)
+        }</span> else<span class="cov8" title="1"> {
+                e, err = time.Parse(util.DateFormat, req.EndDate)
+                if err != nil </span><span class="cov8" title="1">{
+                        response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogParseEndDate, err.Error())
+                        return listReqValidated{}, err
+                }</span>
+        }
 
         <span class="cov8" title="1">var lastID uuid.UUID
         var lastStart time.Time
@@ -337,6 +393,18 @@ func decodeAndValidateListReq(w http.ResponseWriter, r *http.Request) (listReqVa
         return reqV, nil</span>
 }
 
+// ListSubs - возвращает список подписок с пагинацией
+// Важно: эндпоинт принимает JSON в теле (для примера используется метод POST).
+// @Summary Список подписок
+// @Description Возвращает список подписок, отфильтрованных по сервису, пользователю и диапазону дат. Поддерживает курсорную пагинацию. В случае отсутствия фильтров возвращает все подписки.
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Param request body handlers.ListReq true "Фильтры и курсор пагинации"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /listSubs [post]
 func (sh *SubHandler) ListSubs(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
         req, err := decodeAndValidateListReq(w, r)
         if err != nil </span><span class="cov8" title="1">{
@@ -355,21 +423,33 @@ func (sh *SubHandler) ListSubs(w http.ResponseWriter, r *http.Request) <span cla
                 return
         }</span>
 
-        <span class="cov8" title="1">var next *cursorOut
+        <span class="cov8" title="1">var next *CursorOut
         if nextCur != nil &amp;&amp; nextCur.LastID != uuid.Nil &amp;&amp; !nextCur.LastStart.IsZero() </span><span class="cov8" title="1">{
-                next = &amp;cursorOut{
+                next = &amp;CursorOut{
                         LastStart: nextCur.LastStart.Format(util.DateFormat),
                         LastID:    nextCur.LastID.String(),
                         Limit:     nextCur.Limit,
                 }
         }</span>
 
-        <span class="cov8" title="1">response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogListSubs, listResp{
+        <span class="cov8" title="1">response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogListSubs, ListResp{
                 Subscriptions: subs,
                 Cursor:        next,
         })</span>
 }
 
+// SumSubs - возвращает общую сумму по подходящим подпискам
+// Важно: эндпоинт принимает JSON в теле (для примера используется метод POST).
+// @Summary Общая сумма по подпискам
+// @Description Рассчитывает суммарную стоимость подписок по заданным фильтрам за пересекающийся период. В случае отсутствия фильтров рассчитывает сумму по всем подпискам.
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Param request body handlers.ListReq true "Фильтры для расчёта суммы"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /totalSubs [post]
 func (sh *SubHandler) SumSubs(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
         req, err := decodeAndValidateListReq(w, r)
         if err != nil </span><span class="cov8" title="1">{
@@ -394,10 +474,10 @@ import (
         "context"
         "fmt"
         "strings"
+        "time"
+
         "task_test/internal/db"
         "task_test/internal/logger"
-
-        "time"
 
         "github.com/google/uuid"
         "go.uber.org/zap"
@@ -417,10 +497,12 @@ type SubData struct {
 
 var _ SubRepo = &amp;SubData{}
 
+// Close - закрывает соединение с БД/ресурсы пула
 func (sd *SubData) Close() <span class="cov8" title="1">{
         sd.sqlDB.Close()
 }</span>
 
+// NewSubRepo - создаёт новый репозиторий подписок, устанавливая соединение с БД
 func NewSubRepo(dsn string, slowThreshold time.Duration) *SubData <span class="cov0" title="0">{
         ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
         defer cancel()
@@ -502,6 +584,7 @@ type PageCursor struct {
         Limit     int
 }
 
+// List - возвращает отсортированный список подписок с постраничной навигацией (курсор)
 func (sd *SubData) List(serviceName string, userID uuid.UUID, startDate time.Time, endDate time.Time, format string, cur PageCursor) ([]SubInfo, *PageCursor, error) <span class="cov8" title="1">{
 
         var (
@@ -615,6 +698,7 @@ func (sd *SubData) List(serviceName string, userID uuid.UUID, startDate time.Tim
         <span class="cov8" title="1">return res, next, nil</span>
 }
 
+// GetSum - возвращает суммарную стоимость подписок за пересекающийся период
 func (sd *SubData) GetSum(serviceName string, userID uuid.UUID, startDate time.Time, endDate time.Time) (int64, error) <span class="cov8" title="1">{
 
         var (

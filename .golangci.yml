@@ -7,7 +7,6 @@ linters:
     - unused
     - errcheck
     - bodyclose
-    - cyclop
     - gosec
     - gocritic
     - ineffassign
@@ -20,5 +19,8 @@ linters:
     - iface
     - misspell
 
+
+
 run:
   timeout: 2m
+  tests: false

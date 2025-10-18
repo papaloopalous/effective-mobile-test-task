@@ -6,17 +6,21 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
 	"task_test/api/handlers"
+	_ "task_test/docs"
 	"task_test/internal/logger"
 	readConfig "task_test/internal/read_config"
 	"task_test/internal/repo"
 	"task_test/util"
 
 	"github.com/gorilla/mux"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"go.uber.org/zap"
 )
 
 func gracefulStop(repo repo.SubRepo) {
+	// останавливаем приложение по сигналам (SIGINT/SIGTERM)
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -47,8 +51,10 @@ func CreateNewRouter() *mux.Router {
 	router.HandleFunc("/getSub", subHandler.GetByID).Methods("GET")
 	router.HandleFunc("/updateSub", subHandler.UpdateByID).Methods("PUT")
 	router.HandleFunc("/deleteSub", subHandler.RemoveByID).Methods("DELETE")
-	router.HandleFunc("/listSubs", subHandler.ListSubs).Methods("GET")
-	router.HandleFunc("/totalSubs", subHandler.SumSubs).Methods("GET")
+	router.HandleFunc("/listSubs", subHandler.ListSubs).Methods("GET", "POST")
+	router.HandleFunc("/totalSubs", subHandler.SumSubs).Methods("GET", "POST")
+
+	router.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
 
 	return router
 }

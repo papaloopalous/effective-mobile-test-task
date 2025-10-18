@@ -1,6 +1,6 @@
 package util
 
-// error log messages
+// Сообщения логов об ошибках
 const (
 	ErrLogInvalidAddReq        = "invalid add request"
 	ErrLogLongServiceName      = "service name is too long, 255 is allowed"
@@ -27,7 +27,7 @@ const (
 	ErrLogInvalidSumReq        = "invalid sum request"
 )
 
-// success log messages
+// Сообщения логов об успешных операциях
 const (
 	SuccessLogAddSub    = "subscription added successfully"
 	SussessLogGetSub    = "subscription retrieved successfully"
@@ -37,7 +37,7 @@ const (
 	SuccessLogSumSubs   = "total sum listed successfully"
 )
 
-// date format
+// Формат даты для парсинга и форматирования
 const (
 	DateFormat = "01-2006"
 )
