@@ -1,5 +1,9 @@
 # Subscriptions API (effective-mobile-test-task)
 
+Сервис - papaloopalous.xyz:8085/(эндпоинт)
+
+Swagger-документация - papaloopalous.xyz:8085/swagger/index.html
+
 Сервис для управления пользовательскими подписками. Он позволяет:
 - создавать подписки с помесячной ценой и длительностью;
 - получать подписку по ID;
@@ -43,26 +47,30 @@ API документировано через Swagger и сопровождае�
 Во всех запросах/ответах используется формат месяца: `MM-YYYY` (например, `01-2025`). Константа: `app/util/consts.go: DateFormat`.
 
 ## Старт (Docker Compose)
-1) Установите Docker и Docker Compose
+1) Установите Docker Compose
 
-2) Задайте переменные окружения (пример как в CI):
+2) Создайте файл окружения в `/build` (пример как в CI):
 ```
-export MAIN_PORT=8080
-export DB_HOST=localhost
-export DB_PORT=5432
-export DB_USER=test
-export DB_PASSWORD=test
-export DB_NAME=test
-export DB_SSLMODE=disable
-export SLOW_THRESHOLD=200ms
-export DB_POOL_MIN_CONNS=2
-export DB_POOL_MAX_CONNS=20
-export DB_POOL_MAX_CONN_LIFETIME=15m
-export DB_POOL_MAX_CONN_IDLE_TIME=5m
-export DB_POOL_HEALTH_CHECK_PERIOD=1m
+cd build
+cat > .env <<EOF
+MAIN_PORT=8080
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=test
+DB_PASSWORD=test
+DB_NAME=test
+DB_SSLMODE=disable
+SLOW_THRESHOLD=200ms
+DB_POOL_MIN_CONNS=2
+DB_POOL_MAX_CONNS=20
+DB_POOL_MAX_CONN_LIFETIME=15m
+DB_POOL_MAX_CONN_IDLE_TIME=5m
+DB_POOL_HEALTH_CHECK_PERIOD=1m
+DB_TIMEOUT=5s
+EOF
 ```
 
-3) Сгенерируйте конфиги в `build/` и поднимите сервис:
+3) Сгенерируйте конфиги в `/build` и поднимите сервис:
 ```
 cd build
 mkdir -p logs
@@ -156,3 +164,10 @@ cd ../build && docker compose down -v
   - Build: `go mod download && go mod tidy`, затем `go build -v ./...`
   - Lint: `golangci-lint` (таймаут 5м)
   - Test (зависит от build и lint): unit-тесты с покрытием и публикацией `coverage.html`, сборка Docker image, подготовка `build/logs` и `build/configs`, `make generate`, поднятие `docker compose`, ожидание готовности Postgres, установка `tern`, применение миграций, прогон интеграционных тестов, `docker compose down -v` в конце
+
+## P.S.
+```
+Независимо от результата, мне важно получить взгляд со стороны профессионалов.
+
+Пожалуйста, поделитесь хотя бы кратким ревью - это поможет мне выстроить чёткие цели развития и понять, где расти дальше.
+```

@@ -286,8 +286,8 @@ func TestRepo_List_QueryErr_ScanErr_OK_NoNext_WithNext(t *testing.T) {
 	idLast := uuid.New()
 	rows.data = [][]any{
 		{"s1", 1, uuid.New(), time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC), uuid.New()},
-		{"s2", 2, uuid.New(), time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC), uuid.New()},
-		{"s3", 3, uuid.New(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 4, 1, 0, 0, 0, 0, time.UTC), idLast},
+		{"s2", 2, uuid.New(), time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC), idLast},
+		{"s3", 3, uuid.New(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 4, 1, 0, 0, 0, 0, time.UTC), uuid.New()},
 	}
 	rows.idx = 0
 	res, next, err = sd.List(context.Background(), args)

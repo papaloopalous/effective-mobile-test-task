@@ -111,20 +111,22 @@ jobs:
       - name: Create configs and run test service
         working-directory: ${{ env.WORKDIR }}/../build
         run: |
-          export MAIN_PORT=8080
-          export DB_HOST=localhost
-          export DB_PORT=5432
-          export DB_USER=test
-          export DB_PASSWORD=test
-          export DB_NAME=test
-          export DB_SSLMODE=disable
-          export SLOW_THRESHOLD=200ms
-          export DB_POOL_MIN_CONNS=2
-          export DB_POOL_MAX_CONNS=20
-          export DB_POOL_MAX_CONN_LIFETIME=15m
-          export DB_POOL_MAX_CONN_IDLE_TIME=5m
-          export DB_POOL_HEALTH_CHECK_PERIOD=1m
-          export DB_TIMEOUT=5s
+          cat > .env <<EOF
+          MAIN_PORT=8080
+          DB_HOST=localhost
+          DB_PORT=5432
+          DB_USER=test
+          DB_PASSWORD=test
+          DB_NAME=test
+          DB_SSLMODE=disable
+          SLOW_THRESHOLD=200ms
+          DB_POOL_MIN_CONNS=2
+          DB_POOL_MAX_CONNS=20
+          DB_POOL_MAX_CONN_LIFETIME=15m
+          DB_POOL_MAX_CONN_IDLE_TIME=5m
+          DB_POOL_HEALTH_CHECK_PERIOD=1m
+          DB_TIMEOUT=5s
+          EOF
 
           make generate
           docker compose up -d
@@ -143,3 +145,85 @@ jobs:
           
           cd ../build
           docker compose down -v
+
+  deploy:
+    name: Deploy via SSH
+    needs: [build, lint, test]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add remote host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.VM_IP }} >> ~/.ssh/known_hosts
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Go mod download
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          go mod download
+          go mod tidy
+
+      - name: Push Docker Image
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          docker build -f Dockerfile -t ${{ secrets.DOCKER_USER }}/effective-mobile-test:latest .
+          docker push ${{ secrets.DOCKER_USER }}/effective-mobile-test:latest
+
+      - name: Deploy to VM
+        working-directory: ${{ env.WORKDIR }}/../build
+        run: |
+          cat > .env <<EOF
+          MAIN_PORT=${{ secrets.MAIN_PORT }}
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          DB_SSLMODE=${{ secrets.DB_SSLMODE }}
+          SLOW_THRESHOLD=${{ secrets.SLOW_THRESHOLD }}
+          DB_POOL_MIN_CONNS=${{ secrets.DB_POOL_MIN_CONNS }}
+          DB_POOL_MAX_CONNS=${{ secrets.DB_POOL_MAX_CONNS }}
+          DB_POOL_MAX_CONN_LIFETIME=${{ secrets.DB_POOL_MAX_CONN_LIFETIME }}
+          DB_POOL_MAX_CONN_IDLE_TIME=${{ secrets.DB_POOL_MAX_CONN_IDLE_TIME }}
+          DB_POOL_HEALTH_CHECK_PERIOD=${{ secrets.DB_POOL_HEALTH_CHECK_PERIOD }}
+          DB_TIMEOUT=${{ secrets.DB_TIMEOUT }}
+          EOF
+
+          make generate
+
+          set -e
+          ssh ${{ secrets.VM_USER }}@${{ secrets.VM_IP }} "echo 1"
+          scp compose.yml ${{ secrets.VM_USER }}@${{ secrets.VM_IP }}:/home/em/
+          scp -r ./db ${{ secrets.VM_USER }}@${{ secrets.VM_IP }}:/home/em/
+          scp -r ./configs ${{ secrets.VM_USER }}@${{ secrets.VM_IP }}:/home/em/
+          scp  .env ${{ secrets.VM_USER }}@${{ secrets.VM_IP }}:/home/em/
+          ssh ${{ secrets.VM_USER }}@${{ secrets.VM_IP }} "cd /home/em && sudo mkdir -p logs && sudo docker compose down || echo 'No existing Compose stack to stop'"
+          ssh ${{ secrets.VM_USER }}@${{ secrets.VM_IP }} "cd /home/em && sudo docker compose pull"
+          ssh ${{ secrets.VM_USER }}@${{ secrets.VM_IP }} "cd /home/em && docker compose up -d"
+          ssh ${{ secrets.VM_USER }}@${{ secrets.VM_IP }} '\
+          set -e; \
+          cd /home/em && \
+          export PATH="$PATH:/usr/local/go/bin" && \
+          command -v go >/dev/null || { echo "Go not installed on VM"; exit 1; } && \
+          go install github.com/jackc/tern/v2@latest && \
+          "$(go env GOPATH)/bin/tern" migrate --config ./db/tern.conf --migrations ./db/migrations \
+          '

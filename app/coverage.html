@@ -57,7 +57,7 @@
 				
 				<option value="file0">task_test/api/handlers/subs.go (100.0%)</option>
 				
-				<option value="file1">task_test/internal/repo/subscription.go (94.9%)</option>
+				<option value="file1">task_test/internal/repo/subscription.go (94.8%)</option>
 				
 				</select>
 			</div>
@@ -719,19 +719,17 @@ func (sd *SubData) List(ctx context.Context, args ListArgs) ([]SubInfo, *PageCur
                         return nil, nil, err
                 }</span>
 
-                <span class="cov8" title="1">if len(res) == limit </span><span class="cov8" title="1">{
+                <span class="cov8" title="1">info.StartDate = s.Format(args.Format)
+                info.EndDate = e.Format(args.Format)
+
+                res = append(res, info)
+
+                if len(res) == limit </span><span class="cov8" title="1">{
                         gotExtra = true
                         lastStart = s
                         lastID = id
                         break</span>
                 }
-
-                <span class="cov8" title="1">info.StartDate = s.Format(args.Format)
-                info.EndDate = e.Format(args.Format)
-
-                res = append(res, info)
-                lastStart = s
-                lastID = id</span>
         }
 
         <span class="cov8" title="1">var next *PageCursor

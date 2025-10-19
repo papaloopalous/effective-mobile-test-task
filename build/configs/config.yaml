@@ -7,7 +7,7 @@ db:
   port: "5432"
   name: "test"
   sslmode: "disable"
-  timeout: 5s
+  timeout: 10s
   pool:
     min_conns: "2"
     max_conns: "20"

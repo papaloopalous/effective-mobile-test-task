@@ -15,7 +15,7 @@ definitions:
         example: Netflix
         type: string
       start_date:
-        description: дата начала (MM_YYYY)
+        description: дата начала (MM-YYYY)
         example: 01-2025
         type: string
       user_id:
@@ -183,7 +183,8 @@ paths:
       consumes:
       - application/json
       description: Возвращает список подписок, отфильтрованных по сервису, пользователю
-        и диапазону дат. Поддерживает курсорную пагинацию.
+        и диапазону дат. Поддерживает курсорную пагинацию. В случае отсутствия фильтров
+        возвращает все подписки.
       parameters:
       - description: Фильтры и курсор пагинации
         in: body
@@ -214,7 +215,8 @@ paths:
       consumes:
       - application/json
       description: Рассчитывает суммарную стоимость подписок по заданным фильтрам
-        за пересекающийся период.
+        за пересекающийся период. В случае отсутствия фильтров рассчитывает сумму
+        по всем подпискам.
       parameters:
       - description: Фильтры для расчёта суммы
         in: body

@@ -216,19 +216,17 @@ func (sd *SubData) List(ctx context.Context, args ListArgs) ([]SubInfo, *PageCur
 			return nil, nil, err
 		}
 
+		info.StartDate = s.Format(args.Format)
+		info.EndDate = e.Format(args.Format)
+
+		res = append(res, info)
+
 		if len(res) == limit {
 			gotExtra = true
 			lastStart = s
 			lastID = id
 			break
 		}
-
-		info.StartDate = s.Format(args.Format)
-		info.EndDate = e.Format(args.Format)
-
-		res = append(res, info)
-		lastStart = s
-		lastID = id
 	}
 
 	var next *PageCursor

@@ -30,7 +30,7 @@ type AddReq struct {
 
 // AddSub - создаёт новую подписку
 // @Summary Создать подписку
-// @Description Создаёт новую подписку для указанного пользователя и сервиса.
+// @Description Создаёт новую подписку для указанного пользователя и сервиса. Возвращает id созданной подписки.
 // @Tags Subscriptions
 // @Accept json
 // @Produce json
@@ -223,9 +223,9 @@ func (sh *SubHandler) RemoveByID(w http.ResponseWriter, r *http.Request) {
 
 // CursorIn - входной курсор пагинации
 type CursorIn struct {
-	LastStart string `json:"last_start,omitempty" example:"01-2025"`                           // последняя дата (MM-YYYY)
-	LastID    string `json:"last_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"` // последний ID (UUID)
-	Limit     int    `json:"limit,omitempty" example:"50"`                                     // размер страницы (по умолчанию 50)
+	LastStart string `json:"last_start,omitempty" example:"01-2025"`                           // последняя дата (MM-YYYY) (необязательно)
+	LastID    string `json:"last_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"` // последний ID (UUID) (необязательно)
+	Limit     int    `json:"limit,omitempty" example:"50"`                                     // размер страницы (по умолчанию 50) (необязательно)
 }
 
 // ListReq - фильтр для выборки/суммирования подписок
