@@ -1,0 +1,491 @@
+package tests
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"testing"
+	"time"
+
+	"task_test/api/handlers"
+	repoPkg "task_test/internal/repo"
+	"task_test/util"
+
+	"github.com/google/uuid"
+)
+
+// TestAddSub_DecodeError - некорректное тело запроса
+func TestAddSub_DecodeError(t *testing.T) {
+	h := &handlers.SubHandler{Subs: &mockSubRepo{}}
+
+	rr, req := newReq(http.MethodPost, "/addSub", `{"unknown":1}`)
+
+	h.AddSub(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("code %d", rr.Code)
+	}
+
+	ar, _ := decodeResp(rr)
+	if ar.Message != util.ErrLogInvalidAddReq {
+		t.Fatalf("msg %s", ar.Message)
+	}
+}
+
+// TestAddSub_ParseStartError - ошибка парсинга даты начала
+func TestAddSub_ParseStartError(t *testing.T) {
+	h := &handlers.SubHandler{Subs: &mockSubRepo{}}
+
+	body := `{"service_name":"s","user_id":"` + uuid.New().String() + `","monthly_fee":10,"start_date":"13-2025","num_months":1}`
+	rr, req := newReq(http.MethodPost, "/addSub", body)
+
+	h.AddSub(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("code %d", rr.Code)
+	}
+
+	ar, _ := decodeResp(rr)
+	if ar.Message != util.ErrLogParseStartDate {
+		t.Fatalf("msg %s", ar.Message)
+	}
+}
+
+// TestAddSub_ValidateErrors - ошибки валидации запроса (месяцы, цена, длина имени)
+func TestAddSub_ValidateErrors(t *testing.T) {
+	h := &handlers.SubHandler{Subs: &mockSubRepo{}}
+
+	uid := uuid.New().String()
+	b1 := `{"service_name":"s","user_id":"` + uid + `","monthly_fee":10,"start_date":"01-2025","num_months":0}`
+	rr, req := newReq(http.MethodPost, "/addSub", b1)
+
+	h.AddSub(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogNonPosNMonths {
+		t.Fatal("nmonths")
+	}
+
+	b2 := `{"service_name":"s","user_id":"` + uid + `","monthly_fee":-1,"start_date":"01-2025","num_months":1}`
+	rr, req = newReq(http.MethodPost, "/addSub", b2)
+
+	h.AddSub(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogNegMonthlyFee {
+		t.Fatal("fee")
+	}
+
+	long := make([]byte, 256)
+	for i := range long {
+		long[i] = 'a'
+	}
+
+	b3 := `{"service_name":"` + string(long) + `","user_id":"` + uid + `","monthly_fee":10,"start_date":"01-2025","num_months":1}`
+	rr, req = newReq(http.MethodPost, "/addSub", b3)
+
+	h.AddSub(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogLongServiceName {
+		t.Fatal("name")
+	}
+}
+
+// TestAddSub_CreateErrorAndOK - ошибка создания и успешный кейс
+func TestAddSub_CreateErrorAndOK(t *testing.T) {
+	uid := uuid.New()
+	hErr := &handlers.SubHandler{Subs: &mockSubRepo{createFn: func(ctx context.Context, args repoPkg.CreateArgs) (uuid.UUID, error) {
+		return uuid.Nil, errors.New("x")
+	}}}
+	body := `{"service_name":"s","user_id":"` + uid.String() + `","monthly_fee":10,"start_date":"01-2025","num_months":1}`
+	rr, req := newReq(http.MethodPost, "/addSub", body)
+
+	hErr.AddSub(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogAddSub {
+		t.Fatal("add err")
+	}
+
+	newID := uuid.New()
+	hOK := &handlers.SubHandler{Subs: &mockSubRepo{createFn: func(ctx context.Context, args repoPkg.CreateArgs) (uuid.UUID, error) {
+		return newID, nil
+	}}}
+	rr, req = newReq(http.MethodPost, "/addSub", body)
+
+	hOK.AddSub(rr, req)
+	if rr.Code != http.StatusCreated {
+		t.Fatal(rr.Code)
+	}
+
+	ar, _ := decodeResp(rr)
+	if ar.Message != util.SuccessLogAddSub {
+		t.Fatal("add ok")
+	}
+}
+
+// TestGetByID_ParseAndRepoErrorsAndOK - ошибка парсинга ID, ошибка репозитория и успешный кейс
+func TestGetByID_ParseAndRepoErrorsAndOK(t *testing.T) {
+	hBad := &handlers.SubHandler{Subs: &mockSubRepo{}}
+	rr, req := newReq(http.MethodGet, "/getSub?sub_id=bad", "")
+
+	hBad.GetByID(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogInvalidSubID {
+		t.Fatal("id parse")
+	}
+
+	id := uuid.New()
+	hErr := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(ctx context.Context, subID uuid.UUID, format string) (repoPkg.SubInfo, error) {
+		return repoPkg.SubInfo{}, errors.New("x")
+	}}}
+	rr, req = newReq(http.MethodGet, "/getSub?sub_id="+id.String(), "")
+
+	hErr.GetByID(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogGetSub {
+		t.Fatal("get err")
+	}
+
+	info := repoPkg.SubInfo{ServiceName: "s", MonthlyFee: 10, UserID: uuid.New(), StartDate: "01-2025", EndDate: "02-2025"}
+	hOK := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(ctx context.Context, subID uuid.UUID, format string) (repoPkg.SubInfo, error) { return info, nil }}}
+	rr, req = newReq(http.MethodGet, "/getSub?sub_id="+id.String(), "")
+
+	hOK.GetByID(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.SussessLogGetSub {
+		t.Fatal("get ok")
+	}
+}
+
+// TestUpdateByID_DecodeAndParseErrors - ошибка декодирования и парсинга даты окончания
+func TestUpdateByID_DecodeAndParseErrors(t *testing.T) {
+	h := &handlers.SubHandler{Subs: &mockSubRepo{}}
+
+	rr, req := newReq(http.MethodPut, "/updateSub", `{"unknown":1}`)
+
+	h.UpdateByID(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogInvalidUpdateReq {
+		t.Fatal("decode")
+	}
+
+	id := uuid.New()
+	body := `{"sub_id":"` + id.String() + `","monthly_fee":10,"end_date":"13-2025"}`
+	rr, req = newReq(http.MethodPut, "/updateSub", body)
+
+	h.UpdateByID(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogParseEndDate {
+		t.Fatal("end parse")
+	}
+}
+
+// TestUpdateByID_NotFound_ParseStart_NegFee_EndBeforeStart_UpdateErr_OK - набор проверок: не найдено, парсинг start, отриц. стоимость, конец до начала, ошибка обновления и ОК
+func TestUpdateByID_NotFound_ParseStart_NegFee_EndBeforeStart_UpdateErr_OK(t *testing.T) {
+	id := uuid.New()
+	hNotFound := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(ctx context.Context, subID uuid.UUID, format string) (repoPkg.SubInfo, error) {
+		return repoPkg.SubInfo{}, errors.New("nf")
+	}}}
+	rr, req := newReq(http.MethodPut, "/updateSub", `{"sub_id":"`+id.String()+`","monthly_fee":10,"end_date":"02-2025"}`)
+
+	hNotFound.UpdateByID(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogSubNotFound {
+		t.Fatal("nf")
+	}
+
+	badInfo := repoPkg.SubInfo{StartDate: "bad"}
+	hParse := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(context.Context, uuid.UUID, string) (repoPkg.SubInfo, error) { return badInfo, nil }}}
+	rr, req = newReq(http.MethodPut, "/updateSub", `{"sub_id":"`+id.String()+`","monthly_fee":10,"end_date":"02-2025"}`)
+
+	hParse.UpdateByID(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogParseStartDate {
+		t.Fatal("start parse")
+	}
+
+	info := repoPkg.SubInfo{StartDate: "01-2025"}
+	hNeg := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(context.Context, uuid.UUID, string) (repoPkg.SubInfo, error) { return info, nil }}}
+	rr, req = newReq(http.MethodPut, "/updateSub", `{"sub_id":"`+id.String()+`","monthly_fee":-1,"end_date":"02-2025"}`)
+
+	hNeg.UpdateByID(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogNegMonthlyFee {
+		t.Fatal("neg")
+	}
+
+	info2 := repoPkg.SubInfo{StartDate: "03-2025"}
+	hOrder := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(context.Context, uuid.UUID, string) (repoPkg.SubInfo, error) { return info2, nil }}}
+	rr, req = newReq(http.MethodPut, "/updateSub", `{"sub_id":"`+id.String()+`","monthly_fee":0,"end_date":"02-2025"}`)
+
+	hOrder.UpdateByID(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLodEndBeforeStartDate {
+		t.Fatal("order")
+	}
+
+	info3 := repoPkg.SubInfo{StartDate: "01-2025"}
+	hUpdErr := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(context.Context, uuid.UUID, string) (repoPkg.SubInfo, error) { return info3, nil }, updateFn: func(context.Context, uuid.UUID, int, time.Time) error { return errors.New("x") }}}
+	rr, req = newReq(http.MethodPut, "/updateSub", `{"sub_id":"`+id.String()+`","monthly_fee":1,"end_date":"02-2025"}`)
+
+	hUpdErr.UpdateByID(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogUpdateSub {
+		t.Fatal("upd err")
+	}
+
+	hOK := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(context.Context, uuid.UUID, string) (repoPkg.SubInfo, error) { return info3, nil }, updateFn: func(context.Context, uuid.UUID, int, time.Time) error { return nil }}}
+	rr, req = newReq(http.MethodPut, "/updateSub", `{"sub_id":"`+id.String()+`","monthly_fee":1,"end_date":"02-2025"}`)
+
+	hOK.UpdateByID(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.SuccessLogUpdateSub {
+		t.Fatal("upd ok")
+	}
+}
+
+// TestRemoveByID_Parse_DeleteErr_OK - ошибка парсинга ID, ошибка удаления и успешный кейс
+func TestRemoveByID_Parse_DeleteErr_OK(t *testing.T) {
+	hBad := &handlers.SubHandler{Subs: &mockSubRepo{}}
+
+	rr, req := newReq(http.MethodDelete, "/deleteSub?sub_id=bad", "")
+
+	hBad.RemoveByID(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogInvalidSubID {
+		t.Fatal("parse")
+	}
+
+	id := uuid.New()
+	hErr := &handlers.SubHandler{Subs: &mockSubRepo{deleteFn: func(context.Context, uuid.UUID) error { return errors.New("x") }}}
+	rr, req = newReq(http.MethodDelete, "/deleteSub?sub_id="+id.String(), "")
+
+	hErr.RemoveByID(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogDeleteSub {
+		t.Fatal("del err")
+	}
+
+	hOK := &handlers.SubHandler{Subs: &mockSubRepo{deleteFn: func(context.Context, uuid.UUID) error { return nil }}}
+	rr, req = newReq(http.MethodDelete, "/deleteSub?sub_id="+id.String(), "")
+
+	hOK.RemoveByID(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.SuccessLogDeleteSub {
+		t.Fatal("del ok")
+	}
+}
+
+// TestListSubs_DecodeErrors - ошибки декодирования и полей фильтров/курсора
+func TestListSubs_DecodeErrors(t *testing.T) {
+	h := &handlers.SubHandler{Subs: &mockSubRepo{}}
+
+	rr, req := newReq(http.MethodGet, "/listSubs", `{"unknown":1}`)
+
+	h.ListSubs(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogInvalidListReq {
+		t.Fatal("inv")
+	}
+
+	long := make([]byte, 256)
+	for i := range long {
+		long[i] = 'a'
+	}
+	rr, req = newReq(http.MethodGet, "/listSubs", `{"service_name":"`+string(long)+`","user_id":"","start_date":"01-2025","end_date":"02-2025"}`)
+
+	h.ListSubs(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogLongServiceName {
+		t.Fatal("long")
+	}
+
+	rr, req = newReq(http.MethodGet, "/listSubs", `{"service_name":"a","user_id":"bad","start_date":"01-2025","end_date":"02-2025"}`)
+
+	h.ListSubs(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogInvalidUserID {
+		t.Fatal("uid")
+	}
+
+	rr, req = newReq(http.MethodGet, "/listSubs", `{"service_name":"a","user_id":"","start_date":"01-2025","end_date":"02-2025","cursor":{"last_start":"bad"}}`)
+
+	h.ListSubs(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogParseCursorLastStart {
+		t.Fatal("lstart")
+	}
+
+	rr, req = newReq(http.MethodGet, "/listSubs", `{"service_name":"a","user_id":"","start_date":"01-2025","end_date":"02-2025","cursor":{"last_id":"bad"}}`)
+
+	h.ListSubs(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogInvalidCursorLastID {
+		t.Fatal("lid")
+	}
+
+	rr, req = newReq(http.MethodGet, "/listSubs", `{"service_name":"a","user_id":"","start_date":"bad","end_date":"02-2025"}`)
+	h.ListSubs(rr, req)
+
+	rr, req = newReq(http.MethodGet, "/listSubs", `{"service_name":"a","user_id":"","start_date":"01-2025","end_date":"bad"}`)
+	h.ListSubs(rr, req)
+}
+
+// TestListSubs_ListErr_NoCursor_WithCursor - ошибка репозитория и успешные ответы без/с курсором
+func TestListSubs_ListErr_NoCursor_WithCursor(t *testing.T) {
+	hErr := &handlers.SubHandler{Subs: &mockSubRepo{listFn: func(ctx context.Context, args repoPkg.ListArgs) ([]repoPkg.SubInfo, *repoPkg.PageCursor, error) {
+		return nil, nil, errors.New("x")
+	}}}
+
+	rr, req := newReq(http.MethodGet, "/listSubs", `{"service_name":"","user_id":"","start_date":"01-2025","end_date":"02-2025"}`)
+
+	hErr.ListSubs(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogListSub {
+		t.Fatal("list err")
+	}
+
+	subs := []repoPkg.SubInfo{{ServiceName: "s", MonthlyFee: 1, UserID: uuid.New(), StartDate: "01-2025", EndDate: "02-2025"}}
+	hNoCur := &handlers.SubHandler{Subs: &mockSubRepo{listFn: func(ctx context.Context, args repoPkg.ListArgs) ([]repoPkg.SubInfo, *repoPkg.PageCursor, error) {
+		return subs, &repoPkg.PageCursor{}, nil
+	}}}
+	rr, req = newReq(http.MethodGet, "/listSubs", `{"service_name":"","user_id":"","start_date":"01-2025","end_date":"02-2025"}`)
+
+	hNoCur.ListSubs(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.SuccessLogListSubs {
+		t.Fatal("list ok no cur")
+	}
+
+	next := &repoPkg.PageCursor{LastStart: time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC), LastID: uuid.New(), Limit: 1}
+	hCur := &handlers.SubHandler{Subs: &mockSubRepo{listFn: func(ctx context.Context, args repoPkg.ListArgs) ([]repoPkg.SubInfo, *repoPkg.PageCursor, error) {
+		return subs, next, nil
+	}}}
+	rr, req = newReq(http.MethodGet, "/listSubs", `{"service_name":"","user_id":"","start_date":"01-2025","end_date":"02-2025","cursor":{"limit":1}}`)
+
+	hCur.ListSubs(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.SuccessLogListSubs {
+		t.Fatal("list ok with cur")
+	}
+}
+
+// TestSumSubs_GetErr_OK - ошибка при суммировании и успешный кейс
+func TestSumSubs_GetErr_OK(t *testing.T) {
+	hErr := &handlers.SubHandler{Subs: &mockSubRepo{sumFn: func(context.Context, string, uuid.UUID, time.Time, time.Time) (int64, error) {
+		return 0, errors.New("x")
+	}}}
+
+	rr, req := newReq(http.MethodGet, "/totalSubs", `{"service_name":"","user_id":"","start_date":"01-2025","end_date":"02-2025"}`)
+
+	hErr.SumSubs(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogSumSub {
+		t.Fatal("sum err")
+	}
+
+	hOK := &handlers.SubHandler{Subs: &mockSubRepo{sumFn: func(context.Context, string, uuid.UUID, time.Time, time.Time) (int64, error) { return 123, nil }}}
+	rr, req = newReq(http.MethodGet, "/totalSubs", `{"service_name":"","user_id":"","start_date":"01-2025","end_date":""}`)
+
+	hOK.SumSubs(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.SuccessLogSumSubs {
+		t.Fatal("sum ok")
+	}
+}
+
+// TestSumSubs_DecodeErrors - неверное тело запроса
+func TestSumSubs_DecodeErrors(t *testing.T) {
+	h := &handlers.SubHandler{Subs: &mockSubRepo{}}
+
+	rr, req := newReq(http.MethodGet, "/totalSubs", `{"unknown":1}`)
+
+	h.SumSubs(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatal(rr.Code)
+	}
+
+	if ar, _ := decodeResp(rr); ar.Message != util.ErrLogInvalidListReq {
+		t.Fatal("inv")
+	}
+}

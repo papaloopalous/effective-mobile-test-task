@@ -13,7 +13,6 @@
 
 # Code coverage profiles and other test artifacts
 *.out
-coverage.*
 *.coverprofile
 profile.cov
 
@@ -26,7 +25,10 @@ go.work.sum
 
 # env file
 .env
+logs.json
 
 # Editor/IDE
 # .idea/
 # .vscode/
+
+*.sum

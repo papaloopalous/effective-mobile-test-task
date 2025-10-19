@@ -1,0 +1,820 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>handlers: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">task_test/api/handlers/subs.go (100.0%)</option>
+				
+				<option value="file1">task_test/internal/repo/subscription.go (94.8%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package handlers
+
+import (
+        "context"
+        "encoding/json"
+        "errors"
+        "net/http"
+        "time"
+
+        "task_test/api/response"
+        "task_test/internal/repo"
+        "task_test/util"
+
+        "github.com/google/uuid"
+)
+
+type SubHandler struct {
+        Subs    repo.SubRepo
+        Timeout time.Duration
+}
+
+// AddReq - тело запроса для создания подписки
+type AddReq struct {
+        ServiceName string    `json:"service_name" example:"Netflix"`                         // название сервиса
+        UserID      uuid.UUID `json:"user_id" example:"550e8400-e29b-41d4-a716-446655440000"` // ID пользователя (UUID)
+        MonthlyFee  int       `json:"monthly_fee" example:"499"`                              // ежемесячная стоимость
+        StartDate   string    `json:"start_date" example:"01-2025"`                           // дата начала (MM-YYYY)
+        NMonths     int       `json:"num_months" example:"12"`                                // длительность подписки в месяцах
+}
+
+// AddSub - создаёт новую подписку
+// @Summary Создать подписку
+// @Description Создаёт новую подписку для указанного пользователя и сервиса.
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Param request body handlers.AddReq true "Тело запроса для создания подписки"
+// @Success 201 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /addSub [post]
+func (sh *SubHandler) AddSub(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        var req AddReq
+
+        dec := json.NewDecoder(r.Body)
+        dec.DisallowUnknownFields()
+        if err := dec.Decode(&amp;req); err != nil </span><span class="cov8" title="1">{
+                response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidAddReq, err.Error())
+                return
+        }</span>
+
+        <span class="cov8" title="1">start, err := time.Parse(util.DateFormat, req.StartDate)
+        if err != nil </span><span class="cov8" title="1">{
+                response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogParseStartDate, err.Error())
+                return
+        }</span>
+
+        <span class="cov8" title="1">switch </span>{
+
+        case req.NMonths &lt;= 0:<span class="cov8" title="1">
+                response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogNonPosNMonths, nil)
+                return</span>
+
+        case req.MonthlyFee &lt; 0:<span class="cov8" title="1">
+                response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogNegMonthlyFee, nil)
+                return</span>
+
+        case len(req.ServiceName) &gt; 255:<span class="cov8" title="1">
+                response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogLongServiceName, nil)
+                return</span>
+
+        }
+
+        <span class="cov8" title="1">args := repo.CreateArgs{
+                ServiceName: req.ServiceName,
+                MonthlyFee:  req.MonthlyFee,
+                UserID:      req.UserID,
+                StartDate:   start,
+                NMonths:     req.NMonths,
+        }
+
+        ctx, cancel := context.WithTimeout(r.Context(), sh.Timeout)
+        defer cancel()
+
+        id, err := sh.Subs.Create(ctx, args)
+        if err != nil </span><span class="cov8" title="1">{
+                response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogAddSub, err.Error())
+                return
+        }</span>
+
+        <span class="cov8" title="1">response.WriteAPIResponse(w, http.StatusCreated, util.SuccessLogAddSub, id)</span>
+}
+
+// GetByID - возвращает подписку по её ID
+// @Summary Получить подписку по ID
+// @Description Возвращает информацию о подписке по UUID.
+// @Tags Subscriptions
+// @Produce json
+// @Param sub_id query string true "ID подписки (UUID)"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /getSub [get]
+func (sh *SubHandler) GetByID(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        id := r.URL.Query().Get("sub_id")
+        subID, err := uuid.Parse(id)
+        if err != nil </span><span class="cov8" title="1">{
+                response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidSubID, err.Error())
+                return
+        }</span>
+
+        <span class="cov8" title="1">ctx, cancel := context.WithTimeout(r.Context(), sh.Timeout)
+        defer cancel()
+
+        sub, err := sh.Subs.Read(ctx, subID, util.DateFormat)
+        if err != nil </span><span class="cov8" title="1">{
+                response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogGetSub, err.Error())
+                return
+        }</span>
+
+        <span class="cov8" title="1">response.WriteAPIResponse(w, http.StatusOK, util.SussessLogGetSub, sub)</span>
+}
+
+// UpdateReq - тело запроса для обновления подписки
+type UpdateReq struct {
+        SubID      uuid.UUID `json:"sub_id" example:"2f1e4e2a-1a7d-4e6b-a222-3cb3f92f0a11"` // ID подписки (UUID)
+        MonthlyFee int       `json:"monthly_fee" example:"599"`                             // новая ежемесячная стоимость
+        EndDate    string    `json:"end_date" example:"01-2025"`                            // новая дата окончания (MM-YYYY)
+}
+
+// UpdateByID - обновляет подписку по её ID
+// @Summary Обновить подписку
+// @Description Обновляет ежемесячную стоимость и дату окончания подписки.
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Param request body handlers.UpdateReq true "Тело запроса для обновления подписки"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Failure 404 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /updateSub [put]
+func (sh *SubHandler) UpdateByID(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        var req UpdateReq
+
+        dec := json.NewDecoder(r.Body)
+        dec.DisallowUnknownFields()
+        if err := dec.Decode(&amp;req); err != nil </span><span class="cov8" title="1">{
+                response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidUpdateReq, err.Error())
+                return
+        }</span>
+
+        <span class="cov8" title="1">end, err := time.Parse(util.DateFormat, req.EndDate)
+        if err != nil </span><span class="cov8" title="1">{
+                response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogParseEndDate, err.Error())
+                return
+        }</span>
+
+        <span class="cov8" title="1">ctx, cancel := context.WithTimeout(r.Context(), sh.Timeout)
+        defer cancel()
+
+        info, err := sh.Subs.Read(ctx, req.SubID, util.DateFormat)
+        if err != nil </span><span class="cov8" title="1">{
+                response.WriteAPIResponse(w, http.StatusNotFound, util.ErrLogSubNotFound, err.Error())
+                return
+        }</span>
+
+        <span class="cov8" title="1">var s time.Time
+        s, err = time.Parse(util.DateFormat, info.StartDate)
+        if err != nil </span><span class="cov8" title="1">{
+                response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogParseStartDate, err.Error())
+                return
+        }</span>
+
+        <span class="cov8" title="1">switch </span>{
+
+        case req.MonthlyFee &lt; 0:<span class="cov8" title="1">
+                response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogNegMonthlyFee, nil)
+                return</span>
+
+        case s.Compare(end) == 1:<span class="cov8" title="1">
+                response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLodEndBeforeStartDate, map[string]string{"start": s.Format(util.DateFormat), "end": end.Format(util.DateFormat)})
+                return</span>
+
+        }
+
+        <span class="cov8" title="1">if err := sh.Subs.Update(ctx, req.SubID, req.MonthlyFee, end); err != nil </span><span class="cov8" title="1">{
+                response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogUpdateSub, err.Error())
+                return
+        }</span>
+
+        <span class="cov8" title="1">response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogUpdateSub, nil)</span>
+}
+
+// RemoveByID - удаляет подписку по её ID
+// @Summary Удалить подписку
+// @Description Удаляет подписку по UUID.
+// @Tags Subscriptions
+// @Produce json
+// @Param sub_id query string true "ID подписки (UUID)"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /deleteSub [delete]
+func (sh *SubHandler) RemoveByID(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        id := r.URL.Query().Get("sub_id")
+        subID, err := uuid.Parse(id)
+        if err != nil </span><span class="cov8" title="1">{
+                response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidSubID, err.Error())
+                return
+        }</span>
+
+        <span class="cov8" title="1">ctx, cancel := context.WithTimeout(r.Context(), sh.Timeout)
+        defer cancel()
+
+        if err := sh.Subs.Delete(ctx, subID); err != nil </span><span class="cov8" title="1">{
+                response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogDeleteSub, err.Error())
+                return
+        }</span>
+
+        <span class="cov8" title="1">response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogDeleteSub, nil)</span>
+}
+
+// CursorIn - входной курсор пагинации
+type CursorIn struct {
+        LastStart string `json:"last_start,omitempty" example:"01-2025"`                           // последняя дата (MM-YYYY)
+        LastID    string `json:"last_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"` // последний ID (UUID)
+        Limit     int    `json:"limit,omitempty" example:"50"`                                     // размер страницы (по умолчанию 50)
+}
+
+// ListReq - фильтр для выборки/суммирования подписок
+type ListReq struct {
+        ServiceName string   `json:"service_name" example:"Netflix"` // фильтр по названию сервиса (необязательно)
+        UserID      string   `json:"user_id" example:""`             // фильтр по пользователю (UUID, необязательно)
+        StartDate   string   `json:"start_date" example:"01-2025"`   // начальная дата периода (необязательно)
+        EndDate     string   `json:"end_date" example:""`            // конечная дата периода (необязательно)
+        Cursor      CursorIn `json:"cursor"`                         // курсор пагинации (необязательно)
+}
+
+// CursorOut - курсор для следующей страницы в ответе
+type CursorOut struct {
+        LastStart string `json:"last_start"`
+        LastID    string `json:"last_id"`
+        Limit     int    `json:"limit"`
+}
+
+// ListResp - список подписок и курсор следующей страницы
+type ListResp struct {
+        Subscriptions []repo.SubInfo `json:"subscriptions"`
+        Cursor        *CursorOut     `json:"cursor,omitempty"`
+}
+
+type listReqValidated struct {
+        serviceName string
+        userID      uuid.UUID
+        startDate   time.Time
+        endDate     time.Time
+        lastStart   time.Time
+        lastID      uuid.UUID
+        limit       int
+}
+
+func decodeAndValidateListReq(w http.ResponseWriter, r *http.Request) (listReqValidated, error) <span class="cov8" title="1">{
+        var req ListReq
+
+        dec := json.NewDecoder(r.Body)
+        dec.DisallowUnknownFields()
+        if err := dec.Decode(&amp;req); err != nil </span><span class="cov8" title="1">{
+                response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidListReq, err.Error())
+                return listReqValidated{}, err
+        }</span>
+
+        <span class="cov8" title="1">if len(req.ServiceName) &gt; 255 </span><span class="cov8" title="1">{
+                response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogLongServiceName, nil)
+                return listReqValidated{}, errors.New("service name too long")
+        }</span>
+
+        <span class="cov8" title="1">userID, err := uuid.Parse(req.UserID)
+        if err != nil &amp;&amp; req.UserID != "" </span><span class="cov8" title="1">{
+                response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidUserID, err.Error())
+                return listReqValidated{}, err
+        }</span>
+
+        <span class="cov8" title="1">if req.UserID == "" </span><span class="cov8" title="1">{
+                userID = uuid.Nil
+        }</span>
+
+        <span class="cov8" title="1">var s, e time.Time
+        if req.StartDate != "" </span><span class="cov8" title="1">{
+                s, err = time.Parse(util.DateFormat, req.StartDate)
+                if err != nil </span><span class="cov8" title="1">{
+                        response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogParseStartDate, err.Error())
+                        return listReqValidated{}, err
+                }</span>
+        }
+
+        <span class="cov8" title="1">if req.EndDate == "" </span><span class="cov8" title="1">{
+                e = time.Date(9999, 12, 31, 0, 0, 0, 0, time.UTC)
+        }</span> else<span class="cov8" title="1"> {
+                e, err = time.Parse(util.DateFormat, req.EndDate)
+                if err != nil </span><span class="cov8" title="1">{
+                        response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogParseEndDate, err.Error())
+                        return listReqValidated{}, err
+                }</span>
+        }
+
+        <span class="cov8" title="1">var lastID uuid.UUID
+        var lastStart time.Time
+        limit := 50
+        if req.Cursor.LastStart != "" </span><span class="cov8" title="1">{
+                lastStart, err = time.Parse(util.DateFormat, req.Cursor.LastStart)
+                if err != nil </span><span class="cov8" title="1">{
+                        response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogParseCursorLastStart, err.Error())
+                        return listReqValidated{}, err
+                }</span>
+        }
+
+        <span class="cov8" title="1">if req.Cursor.LastID != "" </span><span class="cov8" title="1">{
+                lastID, err = uuid.Parse(req.Cursor.LastID)
+                if err != nil </span><span class="cov8" title="1">{
+                        response.WriteAPIResponse(w, http.StatusBadRequest, util.ErrLogInvalidCursorLastID, err.Error())
+                        return listReqValidated{}, err
+                }</span>
+        }
+
+        <span class="cov8" title="1">if req.Cursor.Limit &gt; 0 </span><span class="cov8" title="1">{
+                limit = req.Cursor.Limit
+        }</span>
+
+        <span class="cov8" title="1">reqV := listReqValidated{
+                serviceName: req.ServiceName,
+                userID:      userID,
+                startDate:   s,
+                endDate:     e,
+                lastStart:   lastStart,
+                lastID:      lastID,
+                limit:       limit,
+        }
+
+        return reqV, nil</span>
+}
+
+// ListSubs - возвращает список подписок с пагинацией
+// Важно: эндпоинт принимает JSON в теле (для примера используется метод POST).
+// @Summary Список подписок
+// @Description Возвращает список подписок, отфильтрованных по сервису, пользователю и диапазону дат. Поддерживает курсорную пагинацию. В случае отсутствия фильтров возвращает все подписки.
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Param request body handlers.ListReq true "Фильтры и курсор пагинации"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /listSubs [post]
+func (sh *SubHandler) ListSubs(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        req, err := decodeAndValidateListReq(w, r)
+        if err != nil </span><span class="cov8" title="1">{
+                return
+        }</span>
+
+        <span class="cov8" title="1">cur := repo.PageCursor{
+                LastStart: req.lastStart,
+                LastID:    req.lastID,
+                Limit:     req.limit,
+        }
+
+        args := repo.ListArgs{
+                ServiceName: req.serviceName,
+                UserID:      req.userID,
+                StartDate:   req.startDate,
+                EndDate:     req.endDate,
+                Format:      util.DateFormat,
+                Cursor:      cur,
+        }
+
+        ctx, cancel := context.WithTimeout(r.Context(), sh.Timeout)
+        defer cancel()
+
+        subs, nextCur, err := sh.Subs.List(ctx, args)
+        if err != nil </span><span class="cov8" title="1">{
+                response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogListSub, err.Error())
+                return
+        }</span>
+
+        <span class="cov8" title="1">var next *CursorOut
+        if nextCur != nil &amp;&amp; nextCur.LastID != uuid.Nil &amp;&amp; !nextCur.LastStart.IsZero() </span><span class="cov8" title="1">{
+                next = &amp;CursorOut{
+                        LastStart: nextCur.LastStart.Format(util.DateFormat),
+                        LastID:    nextCur.LastID.String(),
+                        Limit:     nextCur.Limit,
+                }
+        }</span>
+
+        <span class="cov8" title="1">response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogListSubs, ListResp{
+                Subscriptions: subs,
+                Cursor:        next,
+        })</span>
+}
+
+// SumSubs - возвращает общую сумму по подходящим подпискам
+// Важно: эндпоинт принимает JSON в теле (для примера используется метод POST).
+// @Summary Общая сумма по подпискам
+// @Description Рассчитывает суммарную стоимость подписок по заданным фильтрам за пересекающийся период. В случае отсутствия фильтров рассчитывает сумму по всем подпискам.
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Param request body handlers.ListReq true "Фильтры для расчёта суммы"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /totalSubs [post]
+func (sh *SubHandler) SumSubs(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        req, err := decodeAndValidateListReq(w, r)
+        if err != nil </span><span class="cov8" title="1">{
+                return
+        }</span>
+
+        <span class="cov8" title="1">ctx, cancel := context.WithTimeout(r.Context(), sh.Timeout)
+        defer cancel()
+
+        sum, err := sh.Subs.GetSum(ctx, req.serviceName, req.userID, req.startDate, req.endDate)
+        if err != nil </span><span class="cov8" title="1">{
+                response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogSumSub, err.Error())
+                return
+        }</span>
+
+        <span class="cov8" title="1">response.WriteAPIResponse(w, http.StatusOK, util.SuccessLogSumSubs, sum)</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package repo
+
+import (
+        "context"
+        "strings"
+        "time"
+
+        "task_test/internal/db"
+        "task_test/internal/logger"
+
+        "github.com/google/uuid"
+        "github.com/jackc/pgx/v5"
+        "go.uber.org/zap"
+)
+
+type SubRepo interface {
+        // Create - создать подписку
+        Create(ctx context.Context, args CreateArgs) (uuid.UUID, error)
+        // Read - получить информацию о подписке по ID
+        Read(ctx context.Context, subID uuid.UUID, format string) (SubInfo, error)
+        // Update - обновить стоимость/дату окончания подписки
+        Update(ctx context.Context, subID uuid.UUID, monthlyFee int, endDate time.Time) error
+        // Delete - удалить подписку
+        Delete(ctx context.Context, subID uuid.UUID) error
+        // List - получить список подписок с фильтрами и курсором
+        List(ctx context.Context, args ListArgs) ([]SubInfo, *PageCursor, error)
+        // GetSum - получить суммарную стоимость по фильтрам
+        GetSum(ctx context.Context, serviceName string, userID uuid.UUID, startDate time.Time, endDate time.Time) (int64, error)
+        // Close - закрыть подключение/ресурсы
+        Close()
+}
+
+type SubInfo struct {
+        ServiceName string    `json:"service_name"`
+        MonthlyFee  int       `json:"monthly_fee"`
+        UserID      uuid.UUID `json:"user_id"`
+        StartDate   string    `json:"start_date"`
+        EndDate     string    `json:"end_date"`
+}
+
+type SubData struct {
+        sqlDB db.DB
+}
+
+var _ SubRepo = &amp;SubData{}
+
+// Close - закрывает соединение с БД/ресурсы пула
+func (sd *SubData) Close() <span class="cov8" title="1">{
+        sd.sqlDB.Close()
+}</span>
+
+// NewSubRepo - создаёт новый репозиторий подписок, устанавливая соединение с БД
+func NewSubRepo(ctx context.Context, dsn string, slowThreshold time.Duration) *SubData <span class="cov0" title="0">{
+        pool, err := db.NewDB(ctx, dsn, slowThreshold)
+        if err != nil </span><span class="cov0" title="0">{
+                logger.Log.Fatal("failed to connect to db", zap.Error(err))
+        }</span>
+
+        <span class="cov0" title="0">return &amp;SubData{
+                sqlDB: pool,
+        }</span>
+}
+
+type CreateArgs struct {
+        ServiceName string
+        MonthlyFee  int
+        UserID      uuid.UUID
+        StartDate   time.Time
+        NMonths     int
+}
+
+func (sd *SubData) Create(ctx context.Context, args CreateArgs) (uuid.UUID, error) <span class="cov8" title="1">{
+        end := args.StartDate.AddDate(0, args.NMonths, 0)
+
+        id := uuid.New()
+        query := `INSERT INTO subscriptions (id, service_name, monthly_fee, user_id, start_date, end_date)
+        VALUES (@sub_id, @service_name, @monthly_fee, @user_id, @start_date, @end_date)`
+
+        queryArgs := pgx.NamedArgs{
+                "sub_id":       id,
+                "service_name": args.ServiceName,
+                "monthly_fee":  args.MonthlyFee,
+                "user_id":      args.UserID,
+                "start_date":   args.StartDate,
+                "end_date":     end,
+        }
+
+        if err := sd.sqlDB.Exec(ctx, query, queryArgs); err != nil </span><span class="cov8" title="1">{
+                return uuid.Nil, err
+        }</span>
+
+        <span class="cov8" title="1">return id, nil</span>
+}
+
+func (sd *SubData) Read(ctx context.Context, subID uuid.UUID, format string) (SubInfo, error) <span class="cov8" title="1">{
+        query := `SELECT service_name, monthly_fee, user_id, start_date, end_date
+        FROM subscriptions
+        WHERE id = @sub_id`
+
+        var info SubInfo
+        var start, end time.Time
+        queryArgs := pgx.NamedArgs{
+                "sub_id": subID,
+        }
+        row := sd.sqlDB.QueryRow(ctx, query, queryArgs)
+
+        scanArgs := []any{
+                &amp;info.ServiceName,
+                &amp;info.MonthlyFee,
+                &amp;info.UserID,
+                &amp;start,
+                &amp;end,
+        }
+
+        if err := row.Scan(scanArgs...); err != nil </span><span class="cov8" title="1">{
+                return SubInfo{}, err
+        }</span>
+
+        <span class="cov8" title="1">info.StartDate = start.Format(format)
+        info.EndDate = end.Format(format)
+
+        return info, nil</span>
+}
+
+func (sd *SubData) Update(ctx context.Context, subID uuid.UUID, monthlyFee int, endDate time.Time) error <span class="cov8" title="1">{
+        query := `UPDATE subscriptions
+        SET monthly_fee = @monthly_fee, end_date = @end_date
+        WHERE id = @sub_id`
+
+        queryArgs := pgx.NamedArgs{
+                "monthly_fee": monthlyFee,
+                "end_date":    endDate,
+                "sub_id":      subID,
+        }
+
+        return sd.sqlDB.Exec(ctx, query, queryArgs)
+}</span>
+
+func (sd *SubData) Delete(ctx context.Context, subID uuid.UUID) error <span class="cov8" title="1">{
+        query := `DELETE FROM subscriptions WHERE id = @sub_id`
+
+        queryArgs := pgx.NamedArgs{
+                "sub_id": subID,
+        }
+
+        return sd.sqlDB.Exec(ctx, query, queryArgs)
+}</span>
+
+type PageCursor struct {
+        LastStart time.Time
+        LastID    uuid.UUID
+        Limit     int
+}
+
+type ListArgs struct {
+        ServiceName string
+        UserID      uuid.UUID
+        StartDate   time.Time
+        EndDate     time.Time
+        Format      string
+        Cursor      PageCursor
+}
+
+// List - возвращает отсортированный список подписок с постраничной навигацией (курсор)
+func (sd *SubData) List(ctx context.Context, args ListArgs) ([]SubInfo, *PageCursor, error) <span class="cov8" title="1">{
+        query := strings.Builder{}
+        query.WriteString(`SELECT service_name, monthly_fee, user_id, start_date, end_date, id
+        FROM subscriptions
+        WHERE daterange(start_date, end_date, '[]') &amp;&amp; daterange(@start_date, @end_date, '[]')`)
+
+        if args.ServiceName != "" </span><span class="cov8" title="1">{
+                query.WriteString(" AND service_name = @service_name")
+        }</span>
+
+        <span class="cov8" title="1">if args.UserID != uuid.Nil </span><span class="cov8" title="1">{
+                query.WriteString(" AND user_id = @user_id")
+        }</span>
+
+        <span class="cov8" title="1">if !args.Cursor.LastStart.IsZero() &amp;&amp; args.Cursor.LastID != uuid.Nil </span><span class="cov8" title="1">{
+                query.WriteString(" AND (start_date &gt; @last_start OR (start_date = @last_start AND id &gt; @last_id))")
+        }</span>
+
+        <span class="cov8" title="1">query.WriteString(" ORDER BY start_date ASC, id ASC")
+
+        limit := args.Cursor.Limit
+        query.WriteString(" LIMIT @limit")
+
+        queryArgs := pgx.NamedArgs{
+                "start_date":   args.StartDate,
+                "end_date":     args.EndDate,
+                "limit":        limit + 1,
+                "last_start":   args.Cursor.LastStart,
+                "last_id":      args.Cursor.LastID,
+                "service_name": args.ServiceName,
+                "user_id":      args.UserID,
+        }
+
+        rows, err := sd.sqlDB.Query(ctx, query.String(), queryArgs)
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, nil, err
+        }</span>
+        <span class="cov8" title="1">defer rows.Close()
+
+        res := make([]SubInfo, 0)
+        var (
+                gotExtra  bool
+                lastStart time.Time
+                lastID    uuid.UUID
+        )
+
+        for rows.Next() </span><span class="cov8" title="1">{
+                var info SubInfo
+                var s, e time.Time
+                var id uuid.UUID
+                if err := rows.Scan(&amp;info.ServiceName, &amp;info.MonthlyFee, &amp;info.UserID, &amp;s, &amp;e, &amp;id); err != nil </span><span class="cov8" title="1">{
+                        return nil, nil, err
+                }</span>
+
+                <span class="cov8" title="1">info.StartDate = s.Format(args.Format)
+                info.EndDate = e.Format(args.Format)
+
+                res = append(res, info)
+
+                if len(res) == limit </span><span class="cov8" title="1">{
+                        gotExtra = true
+                        lastStart = s
+                        lastID = id
+                        break</span>
+                }
+        }
+
+        <span class="cov8" title="1">var next *PageCursor
+        if gotExtra </span><span class="cov8" title="1">{
+                next = &amp;PageCursor{
+                        LastStart: lastStart,
+                        LastID:    lastID,
+                        Limit:     limit,
+                }
+        }</span>
+
+        <span class="cov8" title="1">return res, next, nil</span>
+}
+
+// GetSum - возвращает суммарную стоимость подписок за пересекающийся период
+func (sd *SubData) GetSum(ctx context.Context, serviceName string, userID uuid.UUID, startDate time.Time, endDate time.Time) (int64, error) <span class="cov8" title="1">{
+        query := strings.Builder{}
+        query.WriteString(`SELECT COALESCE(SUM(COALESCE(s.monthly_fee, 0) *
+                GREATEST(
+                        0,
+                        (
+                                (EXTRACT(YEAR FROM date_trunc('month', LEAST(s.end_date, (@end_date::date - interval '1 day')))) * 12
+                                + EXTRACT(MONTH FROM date_trunc('month', LEAST(s.end_date, (@end_date::date - interval '1 day')))))
+                                - (EXTRACT(YEAR FROM date_trunc('month', GREATEST(s.start_date, @start_date))) * 12
+                                + EXTRACT(MONTH FROM date_trunc('month', GREATEST(s.start_date, @start_date))))
+                                + 1
+                        )
+                )
+        ), 0) AS total_sum
+        FROM subscriptions s
+        WHERE daterange(start_date, end_date, '[]') &amp;&amp; daterange(@start_date, @end_date, '[]')`)
+
+        if serviceName != "" </span><span class="cov8" title="1">{
+                query.WriteString(" AND service_name = @service_name")
+        }</span>
+
+        <span class="cov8" title="1">if userID != uuid.Nil </span><span class="cov8" title="1">{
+                query.WriteString(" AND user_id = @user_id")
+        }</span>
+
+        <span class="cov8" title="1">queryArgs := pgx.NamedArgs{
+                "start_date":   startDate,
+                "end_date":     endDate,
+                "service_name": serviceName,
+                "user_id":      userID,
+        }
+
+        row := sd.sqlDB.QueryRow(ctx, query.String(), queryArgs)
+        var res int64
+
+        if err := row.Scan(&amp;res); err != nil </span><span class="cov8" title="1">{
+                return 0, err
+        }</span>
+
+        <span class="cov8" title="1">return res, nil</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
