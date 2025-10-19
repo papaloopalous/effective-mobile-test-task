@@ -31,8 +31,7 @@ func WriteAPIResponse(w http.ResponseWriter, statusCode int, message string, dat
 
 	logger.Log.Info("response sent", zap.Any("body", resp))
 
-	err := json.NewEncoder(w).Encode(resp)
-	if err != nil {
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		logger.Log.Error(util.ErrLogWriteResp, zap.Error(err))
 	}
 }

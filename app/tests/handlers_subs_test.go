@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -98,7 +99,7 @@ func TestAddSub_ValidateErrors(t *testing.T) {
 // TestAddSub_CreateErrorAndOK - ошибка создания и успешный кейс
 func TestAddSub_CreateErrorAndOK(t *testing.T) {
 	uid := uuid.New()
-	hErr := &handlers.SubHandler{Subs: &mockSubRepo{createFn: func(serviceName string, monthlyFee int, userID uuid.UUID, startDate time.Time, nMonths int) (uuid.UUID, error) {
+	hErr := &handlers.SubHandler{Subs: &mockSubRepo{createFn: func(ctx context.Context, args repoPkg.CreateArgs) (uuid.UUID, error) {
 		return uuid.Nil, errors.New("x")
 	}}}
 	body := `{"service_name":"s","user_id":"` + uid.String() + `","monthly_fee":10,"start_date":"01-2025","num_months":1}`
@@ -114,7 +115,7 @@ func TestAddSub_CreateErrorAndOK(t *testing.T) {
 	}
 
 	newID := uuid.New()
-	hOK := &handlers.SubHandler{Subs: &mockSubRepo{createFn: func(serviceName string, monthlyFee int, userID uuid.UUID, startDate time.Time, nMonths int) (uuid.UUID, error) {
+	hOK := &handlers.SubHandler{Subs: &mockSubRepo{createFn: func(ctx context.Context, args repoPkg.CreateArgs) (uuid.UUID, error) {
 		return newID, nil
 	}}}
 	rr, req = newReq(http.MethodPost, "/addSub", body)
@@ -145,7 +146,7 @@ func TestGetByID_ParseAndRepoErrorsAndOK(t *testing.T) {
 	}
 
 	id := uuid.New()
-	hErr := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(subID uuid.UUID, format string) (repoPkg.SubInfo, error) {
+	hErr := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(ctx context.Context, subID uuid.UUID, format string) (repoPkg.SubInfo, error) {
 		return repoPkg.SubInfo{}, errors.New("x")
 	}}}
 	rr, req = newReq(http.MethodGet, "/getSub?sub_id="+id.String(), "")
@@ -160,7 +161,7 @@ func TestGetByID_ParseAndRepoErrorsAndOK(t *testing.T) {
 	}
 
 	info := repoPkg.SubInfo{ServiceName: "s", MonthlyFee: 10, UserID: uuid.New(), StartDate: "01-2025", EndDate: "02-2025"}
-	hOK := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(subID uuid.UUID, format string) (repoPkg.SubInfo, error) { return info, nil }}}
+	hOK := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(ctx context.Context, subID uuid.UUID, format string) (repoPkg.SubInfo, error) { return info, nil }}}
 	rr, req = newReq(http.MethodGet, "/getSub?sub_id="+id.String(), "")
 
 	hOK.GetByID(rr, req)
@@ -205,7 +206,7 @@ func TestUpdateByID_DecodeAndParseErrors(t *testing.T) {
 // TestUpdateByID_NotFound_ParseStart_NegFee_EndBeforeStart_UpdateErr_OK - набор проверок: не найдено, парсинг start, отриц. стоимость, конец до начала, ошибка обновления и ОК
 func TestUpdateByID_NotFound_ParseStart_NegFee_EndBeforeStart_UpdateErr_OK(t *testing.T) {
 	id := uuid.New()
-	hNotFound := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(subID uuid.UUID, format string) (repoPkg.SubInfo, error) {
+	hNotFound := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(ctx context.Context, subID uuid.UUID, format string) (repoPkg.SubInfo, error) {
 		return repoPkg.SubInfo{}, errors.New("nf")
 	}}}
 	rr, req := newReq(http.MethodPut, "/updateSub", `{"sub_id":"`+id.String()+`","monthly_fee":10,"end_date":"02-2025"}`)
@@ -220,7 +221,7 @@ func TestUpdateByID_NotFound_ParseStart_NegFee_EndBeforeStart_UpdateErr_OK(t *te
 	}
 
 	badInfo := repoPkg.SubInfo{StartDate: "bad"}
-	hParse := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(uuid.UUID, string) (repoPkg.SubInfo, error) { return badInfo, nil }}}
+	hParse := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(context.Context, uuid.UUID, string) (repoPkg.SubInfo, error) { return badInfo, nil }}}
 	rr, req = newReq(http.MethodPut, "/updateSub", `{"sub_id":"`+id.String()+`","monthly_fee":10,"end_date":"02-2025"}`)
 
 	hParse.UpdateByID(rr, req)
@@ -233,7 +234,7 @@ func TestUpdateByID_NotFound_ParseStart_NegFee_EndBeforeStart_UpdateErr_OK(t *te
 	}
 
 	info := repoPkg.SubInfo{StartDate: "01-2025"}
-	hNeg := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(uuid.UUID, string) (repoPkg.SubInfo, error) { return info, nil }}}
+	hNeg := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(context.Context, uuid.UUID, string) (repoPkg.SubInfo, error) { return info, nil }}}
 	rr, req = newReq(http.MethodPut, "/updateSub", `{"sub_id":"`+id.String()+`","monthly_fee":-1,"end_date":"02-2025"}`)
 
 	hNeg.UpdateByID(rr, req)
@@ -246,7 +247,7 @@ func TestUpdateByID_NotFound_ParseStart_NegFee_EndBeforeStart_UpdateErr_OK(t *te
 	}
 
 	info2 := repoPkg.SubInfo{StartDate: "03-2025"}
-	hOrder := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(uuid.UUID, string) (repoPkg.SubInfo, error) { return info2, nil }}}
+	hOrder := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(context.Context, uuid.UUID, string) (repoPkg.SubInfo, error) { return info2, nil }}}
 	rr, req = newReq(http.MethodPut, "/updateSub", `{"sub_id":"`+id.String()+`","monthly_fee":0,"end_date":"02-2025"}`)
 
 	hOrder.UpdateByID(rr, req)
@@ -259,7 +260,7 @@ func TestUpdateByID_NotFound_ParseStart_NegFee_EndBeforeStart_UpdateErr_OK(t *te
 	}
 
 	info3 := repoPkg.SubInfo{StartDate: "01-2025"}
-	hUpdErr := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(uuid.UUID, string) (repoPkg.SubInfo, error) { return info3, nil }, updateFn: func(uuid.UUID, int, time.Time) error { return errors.New("x") }}}
+	hUpdErr := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(context.Context, uuid.UUID, string) (repoPkg.SubInfo, error) { return info3, nil }, updateFn: func(context.Context, uuid.UUID, int, time.Time) error { return errors.New("x") }}}
 	rr, req = newReq(http.MethodPut, "/updateSub", `{"sub_id":"`+id.String()+`","monthly_fee":1,"end_date":"02-2025"}`)
 
 	hUpdErr.UpdateByID(rr, req)
@@ -271,7 +272,7 @@ func TestUpdateByID_NotFound_ParseStart_NegFee_EndBeforeStart_UpdateErr_OK(t *te
 		t.Fatal("upd err")
 	}
 
-	hOK := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(uuid.UUID, string) (repoPkg.SubInfo, error) { return info3, nil }, updateFn: func(uuid.UUID, int, time.Time) error { return nil }}}
+	hOK := &handlers.SubHandler{Subs: &mockSubRepo{readFn: func(context.Context, uuid.UUID, string) (repoPkg.SubInfo, error) { return info3, nil }, updateFn: func(context.Context, uuid.UUID, int, time.Time) error { return nil }}}
 	rr, req = newReq(http.MethodPut, "/updateSub", `{"sub_id":"`+id.String()+`","monthly_fee":1,"end_date":"02-2025"}`)
 
 	hOK.UpdateByID(rr, req)
@@ -300,7 +301,7 @@ func TestRemoveByID_Parse_DeleteErr_OK(t *testing.T) {
 	}
 
 	id := uuid.New()
-	hErr := &handlers.SubHandler{Subs: &mockSubRepo{deleteFn: func(uuid.UUID) error { return errors.New("x") }}}
+	hErr := &handlers.SubHandler{Subs: &mockSubRepo{deleteFn: func(context.Context, uuid.UUID) error { return errors.New("x") }}}
 	rr, req = newReq(http.MethodDelete, "/deleteSub?sub_id="+id.String(), "")
 
 	hErr.RemoveByID(rr, req)
@@ -312,7 +313,7 @@ func TestRemoveByID_Parse_DeleteErr_OK(t *testing.T) {
 		t.Fatal("del err")
 	}
 
-	hOK := &handlers.SubHandler{Subs: &mockSubRepo{deleteFn: func(uuid.UUID) error { return nil }}}
+	hOK := &handlers.SubHandler{Subs: &mockSubRepo{deleteFn: func(context.Context, uuid.UUID) error { return nil }}}
 	rr, req = newReq(http.MethodDelete, "/deleteSub?sub_id="+id.String(), "")
 
 	hOK.RemoveByID(rr, req)
@@ -397,7 +398,7 @@ func TestListSubs_DecodeErrors(t *testing.T) {
 
 // TestListSubs_ListErr_NoCursor_WithCursor - ошибка репозитория и успешные ответы без/с курсором
 func TestListSubs_ListErr_NoCursor_WithCursor(t *testing.T) {
-	hErr := &handlers.SubHandler{Subs: &mockSubRepo{listFn: func(string, uuid.UUID, time.Time, time.Time, string, repoPkg.PageCursor) ([]repoPkg.SubInfo, *repoPkg.PageCursor, error) {
+	hErr := &handlers.SubHandler{Subs: &mockSubRepo{listFn: func(ctx context.Context, args repoPkg.ListArgs) ([]repoPkg.SubInfo, *repoPkg.PageCursor, error) {
 		return nil, nil, errors.New("x")
 	}}}
 
@@ -413,7 +414,7 @@ func TestListSubs_ListErr_NoCursor_WithCursor(t *testing.T) {
 	}
 
 	subs := []repoPkg.SubInfo{{ServiceName: "s", MonthlyFee: 1, UserID: uuid.New(), StartDate: "01-2025", EndDate: "02-2025"}}
-	hNoCur := &handlers.SubHandler{Subs: &mockSubRepo{listFn: func(string, uuid.UUID, time.Time, time.Time, string, repoPkg.PageCursor) ([]repoPkg.SubInfo, *repoPkg.PageCursor, error) {
+	hNoCur := &handlers.SubHandler{Subs: &mockSubRepo{listFn: func(ctx context.Context, args repoPkg.ListArgs) ([]repoPkg.SubInfo, *repoPkg.PageCursor, error) {
 		return subs, &repoPkg.PageCursor{}, nil
 	}}}
 	rr, req = newReq(http.MethodGet, "/listSubs", `{"service_name":"","user_id":"","start_date":"01-2025","end_date":"02-2025"}`)
@@ -428,7 +429,7 @@ func TestListSubs_ListErr_NoCursor_WithCursor(t *testing.T) {
 	}
 
 	next := &repoPkg.PageCursor{LastStart: time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC), LastID: uuid.New(), Limit: 1}
-	hCur := &handlers.SubHandler{Subs: &mockSubRepo{listFn: func(string, uuid.UUID, time.Time, time.Time, string, repoPkg.PageCursor) ([]repoPkg.SubInfo, *repoPkg.PageCursor, error) {
+	hCur := &handlers.SubHandler{Subs: &mockSubRepo{listFn: func(ctx context.Context, args repoPkg.ListArgs) ([]repoPkg.SubInfo, *repoPkg.PageCursor, error) {
 		return subs, next, nil
 	}}}
 	rr, req = newReq(http.MethodGet, "/listSubs", `{"service_name":"","user_id":"","start_date":"01-2025","end_date":"02-2025","cursor":{"limit":1}}`)
@@ -445,7 +446,9 @@ func TestListSubs_ListErr_NoCursor_WithCursor(t *testing.T) {
 
 // TestSumSubs_GetErr_OK - ошибка при суммировании и успешный кейс
 func TestSumSubs_GetErr_OK(t *testing.T) {
-	hErr := &handlers.SubHandler{Subs: &mockSubRepo{sumFn: func(string, uuid.UUID, time.Time, time.Time) (int64, error) { return 0, errors.New("x") }}}
+	hErr := &handlers.SubHandler{Subs: &mockSubRepo{sumFn: func(context.Context, string, uuid.UUID, time.Time, time.Time) (int64, error) {
+		return 0, errors.New("x")
+	}}}
 
 	rr, req := newReq(http.MethodGet, "/totalSubs", `{"service_name":"","user_id":"","start_date":"01-2025","end_date":"02-2025"}`)
 
@@ -458,7 +461,7 @@ func TestSumSubs_GetErr_OK(t *testing.T) {
 		t.Fatal("sum err")
 	}
 
-	hOK := &handlers.SubHandler{Subs: &mockSubRepo{sumFn: func(string, uuid.UUID, time.Time, time.Time) (int64, error) { return 123, nil }}}
+	hOK := &handlers.SubHandler{Subs: &mockSubRepo{sumFn: func(context.Context, string, uuid.UUID, time.Time, time.Time) (int64, error) { return 123, nil }}}
 	rr, req = newReq(http.MethodGet, "/totalSubs", `{"service_name":"","user_id":"","start_date":"01-2025","end_date":""}`)
 
 	hOK.SumSubs(rr, req)

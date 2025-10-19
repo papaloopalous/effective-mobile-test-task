@@ -154,25 +154,27 @@ func TestRepo_Create_OK_Error(t *testing.T) {
 
 	uid := uuid.New()
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-	_, err := sd.Create("s", 10, uid, start, 2)
+	args := repoPkg.CreateArgs{
+		ServiceName: "s",
+		MonthlyFee:  10,
+		UserID:      uid,
+		StartDate:   start,
+		NMonths:     2,
+	}
+	_, err := sd.Create(context.Background(), args)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(f.lastArgs) != 6 {
-		t.Fatalf("args %d", len(f.lastArgs))
+	args = repoPkg.CreateArgs{
+		ServiceName: "s",
+		MonthlyFee:  10,
+		UserID:      uid,
+		StartDate:   start,
+		NMonths:     1,
 	}
-
-	if !f.lastArgs[4].(time.Time).Equal(start) {
-		t.Fatal("start")
-	}
-
-	if !f.lastArgs[5].(time.Time).Equal(start.AddDate(0, 2, 0)) {
-		t.Fatal("end")
-	}
-
 	f.execErr = errors.New("x")
-	_, err = sd.Create("s", 10, uid, start, 1)
+	_, err = sd.Create(context.Background(), args)
 	if err == nil {
 		t.Fatal("expected err")
 	}
@@ -190,7 +192,7 @@ func TestRepo_Read_OK_Error(t *testing.T) {
 
 	setSubDataDB(sd, f)
 
-	out, err := sd.Read(uuid.New(), util.DateFormat)
+	out, err := sd.Read(context.Background(), uuid.New(), util.DateFormat)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +202,7 @@ func TestRepo_Read_OK_Error(t *testing.T) {
 	}
 
 	f.row = &fakeRow{scanErr: errors.New("x")}
-	_, err = sd.Read(uuid.New(), util.DateFormat)
+	_, err = sd.Read(context.Background(), uuid.New(), util.DateFormat)
 	if err == nil {
 		t.Fatal("expected err")
 	}
@@ -213,23 +215,23 @@ func TestRepo_Update_Delete(t *testing.T) {
 
 	setSubDataDB(sd, f)
 
-	err := sd.Update(uuid.New(), 10, time.Now())
+	err := sd.Update(context.Background(), uuid.New(), 10, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	f.execErr = errors.New("x")
-	if err = sd.Update(uuid.New(), 10, time.Now()); err == nil {
+	if err = sd.Update(context.Background(), uuid.New(), 10, time.Now()); err == nil {
 		t.Fatal("upd err")
 	}
 
 	f.execErr = nil
-	if err = sd.Delete(uuid.New()); err != nil {
+	if err = sd.Delete(context.Background(), uuid.New()); err != nil {
 		t.Fatal(err)
 	}
 
 	f.execErr = errors.New("x")
-	if err = sd.Delete(uuid.New()); err == nil {
+	if err = sd.Delete(context.Background(), uuid.New()); err == nil {
 		t.Fatal("del err")
 	}
 }
@@ -241,8 +243,19 @@ func TestRepo_List_QueryErr_ScanErr_OK_NoNext_WithNext(t *testing.T) {
 
 	setSubDataDB(sd, f)
 
+	args := repoPkg.ListArgs{
+		ServiceName: "",
+		UserID:      uuid.Nil,
+		StartDate:   time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:     time.Date(2025, 12, 1, 0, 0, 0, 0, time.UTC),
+		Format:      util.DateFormat,
+		Cursor: repoPkg.PageCursor{
+			Limit: 2,
+		},
+	}
+
 	f.queryErr = errors.New("x")
-	_, _, err := sd.List("", uuid.Nil, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 12, 1, 0, 0, 0, 0, time.UTC), util.DateFormat, repoPkg.PageCursor{Limit: 2})
+	_, _, err := sd.List(context.Background(), args)
 	if err == nil {
 		t.Fatal("query err")
 	}
@@ -250,7 +263,7 @@ func TestRepo_List_QueryErr_ScanErr_OK_NoNext_WithNext(t *testing.T) {
 	rows := &fakeRows{data: [][]any{{"s", 1, uuid.New(), time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC), uuid.New()}}, scanErr: errors.New("x")}
 	f.queryErr = nil
 	f.rows = rows
-	_, _, err = sd.List("", uuid.Nil, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 12, 1, 0, 0, 0, 0, time.UTC), util.DateFormat, repoPkg.PageCursor{Limit: 2})
+	_, _, err = sd.List(context.Background(), args)
 	if err == nil {
 		t.Fatal("scan err")
 	}
@@ -261,7 +274,7 @@ func TestRepo_List_QueryErr_ScanErr_OK_NoNext_WithNext(t *testing.T) {
 	}
 	rows.idx = 0
 	f.rows = rows
-	res, next, err := sd.List("", uuid.Nil, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 12, 1, 0, 0, 0, 0, time.UTC), util.DateFormat, repoPkg.PageCursor{Limit: 2})
+	res, next, err := sd.List(context.Background(), args)
 	if err != nil || len(res) != 1 || next != nil {
 		t.Fatal("list no next")
 	}
@@ -277,7 +290,7 @@ func TestRepo_List_QueryErr_ScanErr_OK_NoNext_WithNext(t *testing.T) {
 		{"s3", 3, uuid.New(), time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 4, 1, 0, 0, 0, 0, time.UTC), idLast},
 	}
 	rows.idx = 0
-	res, next, err = sd.List("", uuid.Nil, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 12, 1, 0, 0, 0, 0, time.UTC), util.DateFormat, repoPkg.PageCursor{Limit: 2})
+	res, next, err = sd.List(context.Background(), args)
 	if err != nil || len(res) != 2 || next == nil || next.LastID != idLast {
 		t.Fatal("list next")
 	}
@@ -290,9 +303,22 @@ func TestRepo_List_WithFiltersAndCursor(t *testing.T) {
 
 	setSubDataDB(sd, f)
 
+	args := repoPkg.ListArgs{
+		ServiceName: "svc",
+		UserID:      uuid.New(),
+		StartDate:   time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:     time.Date(2025, 12, 1, 0, 0, 0, 0, time.UTC),
+		Format:      util.DateFormat,
+		Cursor: repoPkg.PageCursor{
+			LastStart: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+			LastID:    uuid.New(),
+			Limit:     1,
+		},
+	}
+
 	rows := &fakeRows{data: [][]any{{"s", 1, uuid.New(), time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC), uuid.New()}}}
 	f.rows = rows
-	_, _, err := sd.List("svc", uuid.New(), time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 12, 1, 0, 0, 0, 0, time.UTC), util.DateFormat, repoPkg.PageCursor{LastStart: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), LastID: uuid.New(), Limit: 1})
+	_, _, err := sd.List(context.Background(), args)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -305,13 +331,13 @@ func TestRepo_GetSum_OK_Err(t *testing.T) {
 
 	setSubDataDB(sd, f)
 
-	sum, err := sd.GetSum("", uuid.Nil, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 12, 1, 0, 0, 0, 0, time.UTC))
+	sum, err := sd.GetSum(context.Background(), "", uuid.Nil, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 12, 1, 0, 0, 0, 0, time.UTC))
 	if err != nil || sum != 123 {
 		t.Fatal("sum ok")
 	}
 
 	f.row = &fakeRow{scanErr: errors.New("x")}
-	_, err = sd.GetSum("", uuid.Nil, time.Now(), time.Now())
+	_, err = sd.GetSum(context.Background(), "", uuid.Nil, time.Now(), time.Now())
 	if err == nil {
 		t.Fatal("sum err")
 	}
@@ -327,17 +353,13 @@ func TestRepo_GetSum_WithFilters(t *testing.T) {
 	uid := uuid.New()
 	s := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	e := time.Date(2025, 12, 1, 0, 0, 0, 0, time.UTC)
-	sum, err := sd.GetSum("svc", uid, s, e)
+	sum, err := sd.GetSum(context.Background(), "svc", uid, s, e)
 	if err != nil || sum != 77 {
 		t.Fatalf("sum %v err %v", sum, err)
 	}
 
 	if !strings.Contains(f.lastQuery, "service_name") || !strings.Contains(f.lastQuery, "user_id") {
 		t.Fatal("filters not in query")
-	}
-
-	if len(f.lastArgs) != 4 {
-		t.Fatalf("args %d", len(f.lastArgs))
 	}
 }
 

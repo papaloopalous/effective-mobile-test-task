@@ -7,6 +7,7 @@ db:
   port: "5432"
   name: "${DB_NAME}"
   sslmode: "${DB_SSLMODE}"
+  timeout: ${DB_TIMEOUT}
   pool:
     min_conns: "${DB_POOL_MIN_CONNS}"
     max_conns: "${DB_POOL_MAX_CONNS}"

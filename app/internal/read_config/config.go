@@ -14,8 +14,7 @@ import (
 func init() {
 	viper.SetConfigFile("./configs/config.yaml")
 
-	err := viper.ReadInConfig()
-	if err != nil {
+	if err := viper.ReadInConfig(); err != nil {
 		logger.Log.Fatal("failed to load config", zap.Error(err))
 	}
 }
@@ -28,12 +27,13 @@ func GetSrvInfo() (string, time.Duration) {
 }
 
 // GetDBInfo - сформировать DSN для PostgreSQL и вернуть порог медленного запроса
-func GetDBInfo() (string, time.Duration) {
+func GetDBInfo() (string, time.Duration, time.Duration) {
 	dbUser := viper.GetString("db.user")
 	dbPass := viper.GetString("db.password")
 	dbHost := viper.GetString("db.host")
 	dbPort := viper.GetString("db.port")
 	dbName := viper.GetString("db.name")
+	dbTimeout := viper.GetDuration("db.timeout")
 	sslMode := viper.GetString("db.sslmode")
 	minConns := viper.GetString("db.pool.min_conns")
 	maxConns := viper.GetString("db.pool.max_conns")
@@ -59,5 +59,5 @@ func GetDBInfo() (string, time.Duration) {
 
 	u.RawQuery = q.Encode()
 
-	return u.String(), slowThreshold
+	return u.String(), slowThreshold, dbTimeout
 }

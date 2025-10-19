@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -14,7 +15,8 @@ import (
 )
 
 type SubHandler struct {
-	Subs repo.SubRepo
+	Subs    repo.SubRepo
+	Timeout time.Duration
 }
 
 // AddReq - тело запроса для создания подписки
@@ -69,7 +71,18 @@ func (sh *SubHandler) AddSub(w http.ResponseWriter, r *http.Request) {
 
 	}
 
-	id, err := sh.Subs.Create(req.ServiceName, req.MonthlyFee, req.UserID, start, req.NMonths)
+	args := repo.CreateArgs{
+		ServiceName: req.ServiceName,
+		MonthlyFee:  req.MonthlyFee,
+		UserID:      req.UserID,
+		StartDate:   start,
+		NMonths:     req.NMonths,
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), sh.Timeout)
+	defer cancel()
+
+	id, err := sh.Subs.Create(ctx, args)
 	if err != nil {
 		response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogAddSub, err.Error())
 		return
@@ -96,7 +109,10 @@ func (sh *SubHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sub, err := sh.Subs.Read(subID, util.DateFormat)
+	ctx, cancel := context.WithTimeout(r.Context(), sh.Timeout)
+	defer cancel()
+
+	sub, err := sh.Subs.Read(ctx, subID, util.DateFormat)
 	if err != nil {
 		response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogGetSub, err.Error())
 		return
@@ -140,7 +156,10 @@ func (sh *SubHandler) UpdateByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	info, err := sh.Subs.Read(req.SubID, util.DateFormat)
+	ctx, cancel := context.WithTimeout(r.Context(), sh.Timeout)
+	defer cancel()
+
+	info, err := sh.Subs.Read(ctx, req.SubID, util.DateFormat)
 	if err != nil {
 		response.WriteAPIResponse(w, http.StatusNotFound, util.ErrLogSubNotFound, err.Error())
 		return
@@ -165,8 +184,7 @@ func (sh *SubHandler) UpdateByID(w http.ResponseWriter, r *http.Request) {
 
 	}
 
-	err = sh.Subs.Update(req.SubID, req.MonthlyFee, end)
-	if err != nil {
+	if err := sh.Subs.Update(ctx, req.SubID, req.MonthlyFee, end); err != nil {
 		response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogUpdateSub, err.Error())
 		return
 	}
@@ -192,8 +210,10 @@ func (sh *SubHandler) RemoveByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = sh.Subs.Delete(subID)
-	if err != nil {
+	ctx, cancel := context.WithTimeout(r.Context(), sh.Timeout)
+	defer cancel()
+
+	if err := sh.Subs.Delete(ctx, subID); err != nil {
 		response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogDeleteSub, err.Error())
 		return
 	}
@@ -344,7 +364,19 @@ func (sh *SubHandler) ListSubs(w http.ResponseWriter, r *http.Request) {
 		Limit:     req.limit,
 	}
 
-	subs, nextCur, err := sh.Subs.List(req.serviceName, req.userID, req.startDate, req.endDate, util.DateFormat, cur)
+	args := repo.ListArgs{
+		ServiceName: req.serviceName,
+		UserID:      req.userID,
+		StartDate:   req.startDate,
+		EndDate:     req.endDate,
+		Format:      util.DateFormat,
+		Cursor:      cur,
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), sh.Timeout)
+	defer cancel()
+
+	subs, nextCur, err := sh.Subs.List(ctx, args)
 	if err != nil {
 		response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogListSub, err.Error())
 		return
@@ -383,7 +415,10 @@ func (sh *SubHandler) SumSubs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sum, err := sh.Subs.GetSum(req.serviceName, req.userID, req.startDate, req.endDate)
+	ctx, cancel := context.WithTimeout(r.Context(), sh.Timeout)
+	defer cancel()
+
+	sum, err := sh.Subs.GetSum(ctx, req.serviceName, req.userID, req.startDate, req.endDate)
 	if err != nil {
 		response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogSumSub, err.Error())
 		return

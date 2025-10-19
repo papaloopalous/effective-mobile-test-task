@@ -57,7 +57,7 @@
 				
 				<option value="file0">task_test/api/handlers/subs.go (100.0%)</option>
 				
-				<option value="file1">task_test/internal/repo/subscription.go (88.2%)</option>
+				<option value="file1">task_test/internal/repo/subscription.go (94.9%)</option>
 				
 				</select>
 			</div>
@@ -74,6 +74,7 @@
 		<pre class="file" id="file0" style="display: none">package handlers
 
 import (
+        "context"
         "encoding/json"
         "errors"
         "net/http"
@@ -87,7 +88,8 @@ import (
 )
 
 type SubHandler struct {
-        Subs repo.SubRepo
+        Subs    repo.SubRepo
+        Timeout time.Duration
 }
 
 // AddReq - тело запроса для создания подписки
@@ -142,7 +144,18 @@ func (sh *SubHandler) AddSub(w http.ResponseWriter, r *http.Request) <span class
 
         }
 
-        <span class="cov8" title="1">id, err := sh.Subs.Create(req.ServiceName, req.MonthlyFee, req.UserID, start, req.NMonths)
+        <span class="cov8" title="1">args := repo.CreateArgs{
+                ServiceName: req.ServiceName,
+                MonthlyFee:  req.MonthlyFee,
+                UserID:      req.UserID,
+                StartDate:   start,
+                NMonths:     req.NMonths,
+        }
+
+        ctx, cancel := context.WithTimeout(r.Context(), sh.Timeout)
+        defer cancel()
+
+        id, err := sh.Subs.Create(ctx, args)
         if err != nil </span><span class="cov8" title="1">{
                 response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogAddSub, err.Error())
                 return
@@ -169,7 +182,10 @@ func (sh *SubHandler) GetByID(w http.ResponseWriter, r *http.Request) <span clas
                 return
         }</span>
 
-        <span class="cov8" title="1">sub, err := sh.Subs.Read(subID, util.DateFormat)
+        <span class="cov8" title="1">ctx, cancel := context.WithTimeout(r.Context(), sh.Timeout)
+        defer cancel()
+
+        sub, err := sh.Subs.Read(ctx, subID, util.DateFormat)
         if err != nil </span><span class="cov8" title="1">{
                 response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogGetSub, err.Error())
                 return
@@ -213,7 +229,10 @@ func (sh *SubHandler) UpdateByID(w http.ResponseWriter, r *http.Request) <span c
                 return
         }</span>
 
-        <span class="cov8" title="1">info, err := sh.Subs.Read(req.SubID, util.DateFormat)
+        <span class="cov8" title="1">ctx, cancel := context.WithTimeout(r.Context(), sh.Timeout)
+        defer cancel()
+
+        info, err := sh.Subs.Read(ctx, req.SubID, util.DateFormat)
         if err != nil </span><span class="cov8" title="1">{
                 response.WriteAPIResponse(w, http.StatusNotFound, util.ErrLogSubNotFound, err.Error())
                 return
@@ -238,8 +257,7 @@ func (sh *SubHandler) UpdateByID(w http.ResponseWriter, r *http.Request) <span c
 
         }
 
-        <span class="cov8" title="1">err = sh.Subs.Update(req.SubID, req.MonthlyFee, end)
-        if err != nil </span><span class="cov8" title="1">{
+        <span class="cov8" title="1">if err := sh.Subs.Update(ctx, req.SubID, req.MonthlyFee, end); err != nil </span><span class="cov8" title="1">{
                 response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogUpdateSub, err.Error())
                 return
         }</span>
@@ -265,8 +283,10 @@ func (sh *SubHandler) RemoveByID(w http.ResponseWriter, r *http.Request) <span c
                 return
         }</span>
 
-        <span class="cov8" title="1">err = sh.Subs.Delete(subID)
-        if err != nil </span><span class="cov8" title="1">{
+        <span class="cov8" title="1">ctx, cancel := context.WithTimeout(r.Context(), sh.Timeout)
+        defer cancel()
+
+        if err := sh.Subs.Delete(ctx, subID); err != nil </span><span class="cov8" title="1">{
                 response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogDeleteSub, err.Error())
                 return
         }</span>
@@ -417,7 +437,19 @@ func (sh *SubHandler) ListSubs(w http.ResponseWriter, r *http.Request) <span cla
                 Limit:     req.limit,
         }
 
-        subs, nextCur, err := sh.Subs.List(req.serviceName, req.userID, req.startDate, req.endDate, util.DateFormat, cur)
+        args := repo.ListArgs{
+                ServiceName: req.serviceName,
+                UserID:      req.userID,
+                StartDate:   req.startDate,
+                EndDate:     req.endDate,
+                Format:      util.DateFormat,
+                Cursor:      cur,
+        }
+
+        ctx, cancel := context.WithTimeout(r.Context(), sh.Timeout)
+        defer cancel()
+
+        subs, nextCur, err := sh.Subs.List(ctx, args)
         if err != nil </span><span class="cov8" title="1">{
                 response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogListSub, err.Error())
                 return
@@ -456,7 +488,10 @@ func (sh *SubHandler) SumSubs(w http.ResponseWriter, r *http.Request) <span clas
                 return
         }</span>
 
-        <span class="cov8" title="1">sum, err := sh.Subs.GetSum(req.serviceName, req.userID, req.startDate, req.endDate)
+        <span class="cov8" title="1">ctx, cancel := context.WithTimeout(r.Context(), sh.Timeout)
+        defer cancel()
+
+        sum, err := sh.Subs.GetSum(ctx, req.serviceName, req.userID, req.startDate, req.endDate)
         if err != nil </span><span class="cov8" title="1">{
                 response.WriteAPIResponse(w, http.StatusInternalServerError, util.ErrLogSumSub, err.Error())
                 return
@@ -468,11 +503,8 @@ func (sh *SubHandler) SumSubs(w http.ResponseWriter, r *http.Request) <span clas
 		
 		<pre class="file" id="file1" style="display: none">package repo
 
-// TODO: проверить порядки импорта везде
-
 import (
         "context"
-        "fmt"
         "strings"
         "time"
 
@@ -480,8 +512,26 @@ import (
         "task_test/internal/logger"
 
         "github.com/google/uuid"
+        "github.com/jackc/pgx/v5"
         "go.uber.org/zap"
 )
+
+type SubRepo interface {
+        // Create - создать подписку
+        Create(ctx context.Context, args CreateArgs) (uuid.UUID, error)
+        // Read - получить информацию о подписке по ID
+        Read(ctx context.Context, subID uuid.UUID, format string) (SubInfo, error)
+        // Update - обновить стоимость/дату окончания подписки
+        Update(ctx context.Context, subID uuid.UUID, monthlyFee int, endDate time.Time) error
+        // Delete - удалить подписку
+        Delete(ctx context.Context, subID uuid.UUID) error
+        // List - получить список подписок с фильтрами и курсором
+        List(ctx context.Context, args ListArgs) ([]SubInfo, *PageCursor, error)
+        // GetSum - получить суммарную стоимость по фильтрам
+        GetSum(ctx context.Context, serviceName string, userID uuid.UUID, startDate time.Time, endDate time.Time) (int64, error)
+        // Close - закрыть подключение/ресурсы
+        Close()
+}
 
 type SubInfo struct {
         ServiceName string    `json:"service_name"`
@@ -503,10 +553,7 @@ func (sd *SubData) Close() <span class="cov8" title="1">{
 }</span>
 
 // NewSubRepo - создаёт новый репозиторий подписок, устанавливая соединение с БД
-func NewSubRepo(dsn string, slowThreshold time.Duration) *SubData <span class="cov0" title="0">{
-        ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-        defer cancel()
-
+func NewSubRepo(ctx context.Context, dsn string, slowThreshold time.Duration) *SubData <span class="cov0" title="0">{
         pool, err := db.NewDB(ctx, dsn, slowThreshold)
         if err != nil </span><span class="cov0" title="0">{
                 logger.Log.Fatal("failed to connect to db", zap.Error(err))
@@ -517,38 +564,58 @@ func NewSubRepo(dsn string, slowThreshold time.Duration) *SubData <span class="c
         }</span>
 }
 
-func (sd *SubData) Create(serviceName string, monthlyFee int, userID uuid.UUID, startDate time.Time, nMonths int) (uuid.UUID, error) <span class="cov8" title="1">{
-        ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-        defer cancel()
+type CreateArgs struct {
+        ServiceName string
+        MonthlyFee  int
+        UserID      uuid.UUID
+        StartDate   time.Time
+        NMonths     int
+}
 
-        end := startDate.AddDate(0, nMonths, 0)
+func (sd *SubData) Create(ctx context.Context, args CreateArgs) (uuid.UUID, error) <span class="cov8" title="1">{
+        end := args.StartDate.AddDate(0, args.NMonths, 0)
 
         id := uuid.New()
         query := `INSERT INTO subscriptions (id, service_name, monthly_fee, user_id, start_date, end_date)
-        VALUES ($1, $2, $3, $4, $5, $6)`
+        VALUES (@sub_id, @service_name, @monthly_fee, @user_id, @start_date, @end_date)`
 
-        err := sd.sqlDB.Exec(ctx, query, id, serviceName, monthlyFee, userID, startDate, end)
-        if err != nil </span><span class="cov8" title="1">{
+        queryArgs := pgx.NamedArgs{
+                "sub_id":       id,
+                "service_name": args.ServiceName,
+                "monthly_fee":  args.MonthlyFee,
+                "user_id":      args.UserID,
+                "start_date":   args.StartDate,
+                "end_date":     end,
+        }
+
+        if err := sd.sqlDB.Exec(ctx, query, queryArgs); err != nil </span><span class="cov8" title="1">{
                 return uuid.Nil, err
         }</span>
 
         <span class="cov8" title="1">return id, nil</span>
 }
 
-func (sd *SubData) Read(subID uuid.UUID, format string) (SubInfo, error) <span class="cov8" title="1">{
-        ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-        defer cancel()
-
+func (sd *SubData) Read(ctx context.Context, subID uuid.UUID, format string) (SubInfo, error) <span class="cov8" title="1">{
         query := `SELECT service_name, monthly_fee, user_id, start_date, end_date
         FROM subscriptions
-        WHERE id = $1`
+        WHERE id = @sub_id`
 
         var info SubInfo
         var start, end time.Time
-        row := sd.sqlDB.QueryRow(ctx, query, subID)
+        queryArgs := pgx.NamedArgs{
+                "sub_id": subID,
+        }
+        row := sd.sqlDB.QueryRow(ctx, query, queryArgs)
 
-        err := row.Scan(&amp;info.ServiceName, &amp;info.MonthlyFee, &amp;info.UserID, &amp;start, &amp;end)
-        if err != nil </span><span class="cov8" title="1">{
+        scanArgs := []any{
+                &amp;info.ServiceName,
+                &amp;info.MonthlyFee,
+                &amp;info.UserID,
+                &amp;start,
+                &amp;end,
+        }
+
+        if err := row.Scan(scanArgs...); err != nil </span><span class="cov8" title="1">{
                 return SubInfo{}, err
         }</span>
 
@@ -558,24 +625,28 @@ func (sd *SubData) Read(subID uuid.UUID, format string) (SubInfo, error) <span c
         return info, nil</span>
 }
 
-func (sd *SubData) Update(subID uuid.UUID, monthlyFee int, endDate time.Time) error <span class="cov8" title="1">{
-        ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-        defer cancel()
-
+func (sd *SubData) Update(ctx context.Context, subID uuid.UUID, monthlyFee int, endDate time.Time) error <span class="cov8" title="1">{
         query := `UPDATE subscriptions
-        SET monthly_fee = $1, end_date = $2
-        WHERE id = $3`
+        SET monthly_fee = @monthly_fee, end_date = @end_date
+        WHERE id = @sub_id`
 
-        return sd.sqlDB.Exec(ctx, query, monthlyFee, endDate, subID)
+        queryArgs := pgx.NamedArgs{
+                "monthly_fee": monthlyFee,
+                "end_date":    endDate,
+                "sub_id":      subID,
+        }
+
+        return sd.sqlDB.Exec(ctx, query, queryArgs)
 }</span>
 
-func (sd *SubData) Delete(subID uuid.UUID) error <span class="cov8" title="1">{
-        ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-        defer cancel()
+func (sd *SubData) Delete(ctx context.Context, subID uuid.UUID) error <span class="cov8" title="1">{
+        query := `DELETE FROM subscriptions WHERE id = @sub_id`
 
-        query := `DELETE FROM subscriptions WHERE id = $1`
+        queryArgs := pgx.NamedArgs{
+                "sub_id": subID,
+        }
 
-        return sd.sqlDB.Exec(ctx, query, subID)
+        return sd.sqlDB.Exec(ctx, query, queryArgs)
 }</span>
 
 type PageCursor struct {
@@ -584,72 +655,50 @@ type PageCursor struct {
         Limit     int
 }
 
+type ListArgs struct {
+        ServiceName string
+        UserID      uuid.UUID
+        StartDate   time.Time
+        EndDate     time.Time
+        Format      string
+        Cursor      PageCursor
+}
+
 // List - возвращает отсортированный список подписок с постраничной навигацией (курсор)
-func (sd *SubData) List(serviceName string, userID uuid.UUID, startDate time.Time, endDate time.Time, format string, cur PageCursor) ([]SubInfo, *PageCursor, error) <span class="cov8" title="1">{
-
-        var (
-                query strings.Builder
-                args  []any
-                n     int
-        )
-
-        _, err := query.WriteString(`SELECT service_name, monthly_fee, user_id, start_date, end_date, id
+func (sd *SubData) List(ctx context.Context, args ListArgs) ([]SubInfo, *PageCursor, error) <span class="cov8" title="1">{
+        query := strings.Builder{}
+        query.WriteString(`SELECT service_name, monthly_fee, user_id, start_date, end_date, id
         FROM subscriptions
-        WHERE daterange(start_date, end_date, '[]') &amp;&amp; daterange($1, $2, '[]')`)
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, nil, err
-        }</span>
-        <span class="cov8" title="1">args = append(args, startDate, endDate)
-        n = 2
+        WHERE daterange(start_date, end_date, '[]') &amp;&amp; daterange(@start_date, @end_date, '[]')`)
 
-        if serviceName != "" </span><span class="cov8" title="1">{
-                n++
-                _, err := query.WriteString(fmt.Sprintf(" AND service_name = $%d", n))
-                if err != nil </span><span class="cov0" title="0">{
-                        return nil, nil, err
-                }</span>
-                <span class="cov8" title="1">args = append(args, serviceName)</span>
-        }
-
-        <span class="cov8" title="1">if userID != uuid.Nil </span><span class="cov8" title="1">{
-                n++
-                _, err := query.WriteString(fmt.Sprintf(" AND user_id = $%d", n))
-                if err != nil </span><span class="cov0" title="0">{
-                        return nil, nil, err
-                }</span>
-                <span class="cov8" title="1">args = append(args, userID)</span>
-        }
-
-        <span class="cov8" title="1">if !cur.LastStart.IsZero() &amp;&amp; cur.LastID != uuid.Nil </span><span class="cov8" title="1">{
-                n++
-                lastStartIndex := n
-                n++
-                lastIdIndex := n
-                args = append(args, cur.LastStart, cur.LastID)
-
-                _, err := query.WriteString(fmt.Sprintf(" AND (start_date &gt; $%d OR (start_date = $%d AND id &gt; $%d))", lastStartIndex, lastStartIndex, lastIdIndex))
-                if err != nil </span><span class="cov0" title="0">{
-                        return nil, nil, err
-                }</span>
-        }
-
-        <span class="cov8" title="1">_, err = query.WriteString(" ORDER BY start_date ASC, id ASC")
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, nil, err
+        if args.ServiceName != "" </span><span class="cov8" title="1">{
+                query.WriteString(" AND service_name = @service_name")
         }</span>
 
-        <span class="cov8" title="1">limit := cur.Limit
-        n++
-        args = append(args, limit+1)
-        _, err = query.WriteString(fmt.Sprintf(" LIMIT $%d", n))
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, nil, err
+        <span class="cov8" title="1">if args.UserID != uuid.Nil </span><span class="cov8" title="1">{
+                query.WriteString(" AND user_id = @user_id")
         }</span>
 
-        <span class="cov8" title="1">ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-        defer cancel()
+        <span class="cov8" title="1">if !args.Cursor.LastStart.IsZero() &amp;&amp; args.Cursor.LastID != uuid.Nil </span><span class="cov8" title="1">{
+                query.WriteString(" AND (start_date &gt; @last_start OR (start_date = @last_start AND id &gt; @last_id))")
+        }</span>
 
-        rows, err := sd.sqlDB.Query(ctx, query.String(), args...)
+        <span class="cov8" title="1">query.WriteString(" ORDER BY start_date ASC, id ASC")
+
+        limit := args.Cursor.Limit
+        query.WriteString(" LIMIT @limit")
+
+        queryArgs := pgx.NamedArgs{
+                "start_date":   args.StartDate,
+                "end_date":     args.EndDate,
+                "limit":        limit + 1,
+                "last_start":   args.Cursor.LastStart,
+                "last_id":      args.Cursor.LastID,
+                "service_name": args.ServiceName,
+                "user_id":      args.UserID,
+        }
+
+        rows, err := sd.sqlDB.Query(ctx, query.String(), queryArgs)
         if err != nil </span><span class="cov8" title="1">{
                 return nil, nil, err
         }</span>
@@ -666,8 +715,7 @@ func (sd *SubData) List(serviceName string, userID uuid.UUID, startDate time.Tim
                 var info SubInfo
                 var s, e time.Time
                 var id uuid.UUID
-                err := rows.Scan(&amp;info.ServiceName, &amp;info.MonthlyFee, &amp;info.UserID, &amp;s, &amp;e, &amp;id)
-                if err != nil </span><span class="cov8" title="1">{
+                if err := rows.Scan(&amp;info.ServiceName, &amp;info.MonthlyFee, &amp;info.UserID, &amp;s, &amp;e, &amp;id); err != nil </span><span class="cov8" title="1">{
                         return nil, nil, err
                 }</span>
 
@@ -678,8 +726,8 @@ func (sd *SubData) List(serviceName string, userID uuid.UUID, startDate time.Tim
                         break</span>
                 }
 
-                <span class="cov8" title="1">info.StartDate = s.Format(format)
-                info.EndDate = e.Format(format)
+                <span class="cov8" title="1">info.StartDate = s.Format(args.Format)
+                info.EndDate = e.Format(args.Format)
 
                 res = append(res, info)
                 lastStart = s
@@ -699,59 +747,42 @@ func (sd *SubData) List(serviceName string, userID uuid.UUID, startDate time.Tim
 }
 
 // GetSum - возвращает суммарную стоимость подписок за пересекающийся период
-func (sd *SubData) GetSum(serviceName string, userID uuid.UUID, startDate time.Time, endDate time.Time) (int64, error) <span class="cov8" title="1">{
-
-        var (
-                query strings.Builder
-                args  []any
-                n     int
-        )
-
-        _, err := query.WriteString(`SELECT COALESCE(SUM(COALESCE(s.monthly_fee, 0) *
+func (sd *SubData) GetSum(ctx context.Context, serviceName string, userID uuid.UUID, startDate time.Time, endDate time.Time) (int64, error) <span class="cov8" title="1">{
+        query := strings.Builder{}
+        query.WriteString(`SELECT COALESCE(SUM(COALESCE(s.monthly_fee, 0) *
                 GREATEST(
                         0,
                         (
-                                (EXTRACT(YEAR FROM date_trunc('month', LEAST(s.end_date, ($2::date - interval '1 day')))) * 12
-                                + EXTRACT(MONTH FROM date_trunc('month', LEAST(s.end_date, ($2::date - interval '1 day')))))
-                                - (EXTRACT(YEAR FROM date_trunc('month', GREATEST(s.start_date, $1))) * 12
-                                + EXTRACT(MONTH FROM date_trunc('month', GREATEST(s.start_date, $1))))
+                                (EXTRACT(YEAR FROM date_trunc('month', LEAST(s.end_date, (@end_date::date - interval '1 day')))) * 12
+                                + EXTRACT(MONTH FROM date_trunc('month', LEAST(s.end_date, (@end_date::date - interval '1 day')))))
+                                - (EXTRACT(YEAR FROM date_trunc('month', GREATEST(s.start_date, @start_date))) * 12
+                                + EXTRACT(MONTH FROM date_trunc('month', GREATEST(s.start_date, @start_date))))
                                 + 1
                         )
                 )
         ), 0) AS total_sum
         FROM subscriptions s
-        WHERE daterange(start_date, end_date, '[]') &amp;&amp; daterange($1, $2, '[]')`)
-        if err != nil </span><span class="cov0" title="0">{
-                return 0, err
-        }</span>
-        <span class="cov8" title="1">args = append(args, startDate, endDate)
-        n = 2
+        WHERE daterange(start_date, end_date, '[]') &amp;&amp; daterange(@start_date, @end_date, '[]')`)
 
         if serviceName != "" </span><span class="cov8" title="1">{
-                n++
-                _, err := query.WriteString(fmt.Sprintf(" AND service_name = $%d", n))
-                if err != nil </span><span class="cov0" title="0">{
-                        return 0, err
-                }</span>
-                <span class="cov8" title="1">args = append(args, serviceName)</span>
-        }
+                query.WriteString(" AND service_name = @service_name")
+        }</span>
 
         <span class="cov8" title="1">if userID != uuid.Nil </span><span class="cov8" title="1">{
-                n++
-                _, err := query.WriteString(fmt.Sprintf(" AND user_id = $%d", n))
-                if err != nil </span><span class="cov0" title="0">{
-                        return 0, err
-                }</span>
-                <span class="cov8" title="1">args = append(args, userID)</span>
+                query.WriteString(" AND user_id = @user_id")
+        }</span>
+
+        <span class="cov8" title="1">queryArgs := pgx.NamedArgs{
+                "start_date":   startDate,
+                "end_date":     endDate,
+                "service_name": serviceName,
+                "user_id":      userID,
         }
 
-        <span class="cov8" title="1">ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-        defer cancel()
-
-        row := sd.sqlDB.QueryRow(ctx, query.String(), args...)
+        row := sd.sqlDB.QueryRow(ctx, query.String(), queryArgs)
         var res int64
-        err = row.Scan(&amp;res)
-        if err != nil </span><span class="cov8" title="1">{
+
+        if err := row.Scan(&amp;res); err != nil </span><span class="cov8" title="1">{
                 return 0, err
         }</span>
 

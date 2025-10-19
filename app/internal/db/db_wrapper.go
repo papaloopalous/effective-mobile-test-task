@@ -46,8 +46,7 @@ func NewDB(ctx context.Context, dsn string, slowThreshold time.Duration) (*Pool,
 		slowThreshold: slowThreshold,
 	}
 
-	err = wrapper.Ping(ctx)
-	if err != nil {
+	if err := wrapper.Ping(ctx); err != nil {
 		pool.Close()
 		return nil, err
 	}

@@ -124,6 +124,7 @@ jobs:
           export DB_POOL_MAX_CONN_LIFETIME=15m
           export DB_POOL_MAX_CONN_IDLE_TIME=5m
           export DB_POOL_HEALTH_CHECK_PERIOD=1m
+          export DB_TIMEOUT=5s
 
           make generate
           docker compose up -d

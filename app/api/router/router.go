@@ -1,11 +1,12 @@
 package router
 
 import (
+	"context"
 	"errors"
 	"net/http"
-	"os"
-	"os/signal"
+	"sync"
 	"syscall"
+	"time"
 
 	"task_test/api/handlers"
 	_ "task_test/docs"
@@ -19,28 +20,30 @@ import (
 	"go.uber.org/zap"
 )
 
-func gracefulStop(repo repo.SubRepo) {
-	// останавливаем приложение по сигналам (SIGINT/SIGTERM)
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+func stopRouter(ctx context.Context, wg *sync.WaitGroup, repo repo.SubRepo) {
+	<-ctx.Done()
 	logger.Log.Info("closing repo and logger")
 	repo.Close()
 	err := logger.Log.Sync()
 	if err != nil && !errors.Is(err, syscall.EINVAL) && !errors.Is(err, syscall.ENOTTY) {
 		logger.Log.Error(util.ErrLogLoggerSync, zap.Error(err))
 	}
+	defer wg.Done()
 }
 
-func CreateNewRouter() *mux.Router {
+func CreateNewRouter(ctx context.Context, wg *sync.WaitGroup) *mux.Router {
 	router := mux.NewRouter()
 
-	subRepo := repo.NewSubRepo(readConfig.GetDBInfo())
+	repoCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	dsn, slowThreshold, timeout := readConfig.GetDBInfo()
+	subRepo := repo.NewSubRepo(repoCtx, dsn, slowThreshold)
 
-	go gracefulStop(subRepo)
+	go stopRouter(ctx, wg, subRepo)
 
 	subHandler := &handlers.SubHandler{
-		Subs: subRepo,
+		Subs:    subRepo,
+		Timeout: timeout,
 	}
 
 	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

@@ -12,9 +12,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -28,7 +30,10 @@ import (
 func main() {
 	srvPort, timeout := readConfig.GetSrvInfo()
 
-	router := router.CreateNewRouter()
+	wg := new(sync.WaitGroup)
+	ctx, cancel := context.WithCancel(context.Background())
+	wg.Add(1)
+	router := router.CreateNewRouter(ctx, wg)
 
 	srv := &http.Server{
 		ReadHeaderTimeout: timeout,
@@ -40,7 +45,7 @@ func main() {
 		logger.Log.Info("server is starting", zap.String("port", srvPort))
 		err := srv.ListenAndServe()
 
-		if err != nil && err != http.ErrServerClosed {
+		if err != nil && errors.Is(err, http.ErrServerClosed) {
 			logger.Log.Fatal("server error", zap.Error(err))
 		}
 	}()
@@ -49,13 +54,14 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	<-quit
+	cancel()
+
+	wg.Wait()
 	logger.Log.Info("server is shutting down")
+	ctxMain, cancelMain := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelMain()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	err := srv.Shutdown(ctx)
-	if err != nil {
+	if err := srv.Shutdown(ctxMain); err != nil {
 		logger.Log.Fatal("timeout expired", zap.Error(err))
 	}
 

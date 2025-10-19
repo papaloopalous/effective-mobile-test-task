@@ -65,6 +65,8 @@ export DB_POOL_HEALTH_CHECK_PERIOD=1m
 3) Сгенерируйте конфиги в `build/` и поднимите сервис:
 ```
 cd build
+mkdir -p logs
+mkdir -p configs
 make generate
 docker compose up -d
 ```
