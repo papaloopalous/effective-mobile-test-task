@@ -82,7 +82,7 @@ docker compose up -d
 4) Примените миграции (установить tern и выполнить миграции):
 ```
 go install github.com/jackc/tern/v2@latest
-tern migrate --config ./db/tern.conf --migrations ./db/migrations
+$(go env GOPATH)/bin/tern migrate --config ./db/tern.conf --migrations ./db/migrations
 ```
 
 ## Эндпоинты
